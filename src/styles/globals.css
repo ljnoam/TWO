@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+  height: 100%;
+  background-color: #fff;
+  font-family: system-ui, sans-serif;
+}
+
+
+/* "Bento sticky note vibes" */
+.note-card {
+  box-shadow:
+    0 10px 30px rgba(0,0,0,.08),
+    0 1px 0 rgba(255,255,255,.6) inset;
+  position: relative;
+}
+
+.note-card::after {
+  /* petit bord type "scotch" doux */
+  content: "";
+  position: absolute;
+  top: -8px; left: 50%;
+  transform: translateX(-50%) rotate(var(--tape-rot, -2deg));
+  width: 90px; height: 16px;
+  background: linear-gradient(180deg, rgba(255,255,255,.8), rgba(255,255,255,.3));
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.12);
+}
+
+/* 3 styles d’outline un peu irréguliers */
+.note-squiggle-1 { outline: 2px solid rgba(0,0,0,.12); outline-offset: -6px; border-radius: 18px; }
+.note-squiggle-2 { box-shadow: 0 0 0 2px rgba(0,0,0,.10) inset; border-radius: 22px; }
+.note-squiggle-3 { box-shadow: 0 0 0 1px rgba(0,0,0,.16) inset, 0 0 0 4px rgba(0,0,0,.03) inset; border-radius: 26px; }
+
+/* petites rotations aléa */
+.rot-1 { transform: rotate(-1deg); }
+.rot-2 { transform: rotate(1.2deg); }
+.rot-3 { transform: rotate(-2deg); }
+
+.hand-1 { font-family: 'Caveat', 'Shadows Into Light', 'Patrick Hand', cursive; }
+.hand-2 { font-family: 'Shadows Into Light', 'Caveat', 'Patrick Hand', cursive; }
+.hand-3 { font-family: 'Patrick Hand', 'Caveat', cursive; }

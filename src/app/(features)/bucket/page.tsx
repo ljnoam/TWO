@@ -26,7 +26,10 @@ export default function BucketPage() {
   useEffect(() => {
     (async () => {
       const { data: s } = await supabase.auth.getSession();
-      if (!s.session) { router.replace('/register'); return; }
+      if (!s.session) {
+        router.replace('/register');
+        return;
+      }
       setMe(s.session.user.id);
 
       const { data: st } = await supabase
@@ -35,8 +38,14 @@ export default function BucketPage() {
         .eq('user_id', s.session.user.id)
         .maybeSingle();
 
-      if (!st) { router.replace('/onboarding'); return; }
-      if (st.members_count < 2) { router.replace('/waiting'); return; }
+      if (!st) {
+        router.replace('/onboarding');
+        return;
+      }
+      if (st.members_count < 2) {
+        router.replace('/waiting');
+        return;
+      }
 
       setCoupleId(st.couple_id);
 
@@ -51,38 +60,40 @@ export default function BucketPage() {
     })();
   }, [router]);
 
-  // 🔥 Realtime universel (on filtre côté client sur couple_id)
+  // 🔥 Realtime universel
   useEffect(() => {
     const ch = supabase
       .channel('bucket_items_all')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bucket_items' }, (p) => {
         const row = p.new as Item;
-        setItems(prev => {
+        setItems((prev) => {
           if (!coupleId || row.couple_id !== coupleId) return prev;
-          if (prev.find(i => i.id === row.id)) return prev;
+          if (prev.find((i) => i.id === row.id)) return prev;
           return [...prev, row];
         });
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'bucket_items' }, (p) => {
         const row = p.new as Item;
-        setItems(prev => {
+        setItems((prev) => {
           if (!coupleId || row.couple_id !== coupleId) return prev;
-          return prev.map(i => i.id === row.id ? row : i);
+          return prev.map((i) => (i.id === row.id ? row : i));
         });
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'bucket_items' }, (p) => {
         const row = p.old as Item;
-        setItems(prev => {
+        setItems((prev) => {
           if (!coupleId || row.couple_id !== coupleId) return prev;
-          return prev.filter(i => i.id !== row.id);
+          return prev.filter((i) => i.id !== row.id);
         });
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(ch); };
+    return () => {
+      supabase.removeChannel(ch);
+    };
   }, [coupleId]);
 
-  // 🔁 Resync quand l’app redevient visible (wake/sleep)
+  // 🔁 Resync on wake
   useEffect(() => {
     async function refetch() {
       if (!coupleId || document.hidden) return;
@@ -98,43 +109,47 @@ export default function BucketPage() {
     return () => document.removeEventListener('visibilitychange', refetch);
   }, [coupleId]);
 
-  const remaining = useMemo(() => items.filter(i => !i.is_done).length, [items]);
+  const remaining = useMemo(() => items.filter((i) => !i.is_done).length, [items]);
 
-  // ➕ Ajouter (optimistic + fallback)
+  // ➕ Ajouter
   async function addItem() {
     const title = input.trim();
     if (!title || !me || !coupleId) return;
     setInput('');
-    // pas d’optimistic ici (on laisse le realtime ajouter pour éviter doublon)
     const { error } = await supabase.from('bucket_items').insert({
-        title, couple_id: coupleId, author_id: me
+      title,
+      couple_id: coupleId,
+      author_id: me,
     });
 
     if (error) {
-        setInput(title);
-        alert(error.message);
-        return;
+      setInput(title);
+      alert(error.message);
+      return;
     }
 
-    // ✅ Envoi de la notif push au partenaire
     try {
-        await fetch('/api/push/notify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                bucketTitle: title, // on passe le titre ajouté
-                type: 'bucket'
-            }),
-        });
+      await fetch('/api/push/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bucketTitle: title,
+          type: 'bucket',
+        }),
+      });
     } catch (err) {
-        console.warn('Erreur lors de l’envoi de la notif:', err);
+      console.warn('Erreur lors de l’envoi de la notif:', err);
     }
   }
 
-  // ✅ Toggle (optimistic)
+  // ✅ Toggle
   async function toggleItem(id: string, is_done: boolean) {
     const newVal = !is_done;
-    setItems(prev => prev.map(i => i.id === id ? { ...i, is_done: newVal, done_at: newVal ? new Date().toISOString() : null } : i));
+    setItems((prev) =>
+      prev.map((i) =>
+        i.id === id ? { ...i, is_done: newVal, done_at: newVal ? new Date().toISOString() : null } : i
+      )
+    );
     const { error } = await supabase
       .from('bucket_items')
       .update({ is_done: newVal, done_at: newVal ? new Date().toISOString() : null })
@@ -142,73 +157,145 @@ export default function BucketPage() {
     if (error) alert(error.message);
   }
 
-  // 🗑️ Delete (optimistic)
+  // 🗑️ Delete
   async function delItem(id: string) {
-    setItems(prev => prev.filter(i => i.id !== id));
+    setItems((prev) => prev.filter((i) => i.id !== id));
     const { error } = await supabase.from('bucket_items').delete().eq('id', id);
     if (error) alert(error.message);
   }
 
   return (
-    <main className="max-w-3xl mx-auto space-y-4 sm:space-y-6">
-      <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/80 dark:bg-neutral-900/70 backdrop-blur-md shadow-lg p-4 sm:p-5">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold">Bucket list</h1>
-          <span className="text-sm opacity-70">{remaining} à faire</span>
-        </div>
+    <main
+      style={
+        {
+          ['--nav-h' as any]: '64px', // hauteur de ta navbar
+          ['--gap' as any]: '16px', // gap haut / bas
+        } as React.CSSProperties
+      }
+      className={`
+        w-full max-w-3xl mx-auto
+        min-h-[100svh]
+        overflow-hidden
+        px-3 sm:px-4
+        pt-[calc(env(safe-area-inset-top)+var(--gap))]
+        pb-[calc(env(safe-area-inset-bottom)+var(--nav-h)+var(--gap))]
+        flex flex-col
+      `}
+    >
+      {/* === COMPOSER FIXE EN HAUT === */}
+      <section
+        className={`
+          fixed top-[calc(env(safe-area-inset-top)+var(--gap))]
+          left-0 right-0
+          px-3 sm:px-4
+          z-10
+        `}
+      >
+        <div className="max-w-3xl mx-auto rounded-2xl border border-black/10 dark:border-white/10 bg-white/80 dark:bg-neutral-900/70 backdrop-blur-md shadow-lg p-4 sm:p-5">
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl font-semibold">Bucket list</h1>
+            <span className="text-sm opacity-70">{remaining} à faire</span>
+          </div>
 
-        <div className="mt-3 flex gap-2">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ajouter une idée à deux…"
-            className="flex-1 rounded-xl border border-black/10 dark:border-white/10 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-black/10 dark:focus:ring-white/10"
-          />
-          <button
-            onClick={addItem}
-            className="inline-flex items-center gap-2 rounded-xl border border-black/10 dark:border-white/10 bg-black text-white dark:bg-white dark:text-black px-3 py-2 font-medium disabled:opacity-50"
-            disabled={!input.trim()}
-          >
-            <Plus className="h-4 w-4" /> Ajouter
-          </button>
+          <div className="mt-3 flex gap-2">
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Ajouter une idée à deux…"
+              className="flex-1 rounded-xl border border-black/10 dark:border-white/10 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-black/10 dark:focus:ring-white/10"
+            />
+            <button
+              onClick={addItem}
+              className="inline-flex items-center gap-2 rounded-xl border border-black/10 dark:border-white/10 bg-black text-white dark:bg-white dark:text-black px-3 py-2 font-medium disabled:opacity-50 active:scale-95 transition"
+              disabled={!input.trim()}
+            >
+              <Plus className="h-4 w-4" /> Ajouter
+            </button>
+          </div>
         </div>
-      </div>
+      </section>
 
-      <ul className="space-y-2">
-        {items.length === 0 ? (
-          <li className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/70 dark:bg-neutral-900/60 backdrop-blur-md shadow p-4 text-sm opacity-70">
-            Aucune idée pour l’instant. Proposez-en une !
-          </li>
-        ) : (
-          items
-            .sort((a, b) => Number(a.is_done) - Number(b.is_done) || a.created_at.localeCompare(b.created_at))
-            .map(item => (
-              <li key={item.id} className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/80 dark:bg-neutral-900/70 backdrop-blur-md shadow p-3 sm:p-4 flex items-center justify-between gap-3">
-                <button
-                  className="shrink-0 p-1 rounded-lg hover:bg-black/5 dark:hover:bg.white/10"
-                  onClick={() => toggleItem(item.id, item.is_done)}
-                  aria-label={item.is_done ? 'Marquer non fait' : 'Marquer fait'}
-                  title={item.is_done ? 'Marquer non fait' : 'Marquer fait'}
-                >
-                  {item.is_done ? <CheckCircle2 className="h-6 w-6" /> : <Circle className="h-6 w-6" />}
-                </button>
-                <div className="flex-1">
-                  <p className={`text-base sm:text-lg ${item.is_done ? 'line-through opacity-60' : ''}`}>{item.title}</p>
-                  {item.is_done && item.done_at && (
-                    <p className="text-xs opacity-60">Fait le {new Date(item.done_at).toLocaleDateString()}</p>
-                  )}
-                </div>
-                <button
-                  className="shrink-0 inline-flex items-center gap-1 rounded-lg px-2 py-1 hover:bg-black/5 dark:hover:bg-white/10"
-                  onClick={() => delItem(item.id)}
-                  aria-label="Supprimer"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </li>
-            ))
-        )}
-      </ul>
+      {/* === LISTE SCROLLABLE (seule zone scroll) === */}
+      <section
+        className={`
+          flex-1 overflow-y-auto no-scrollbar
+          mt-[calc(var(--gap)*2+100px)]  /* espace sous le composer */
+          pb-[calc(var(--nav-h)+var(--gap))]
+          snap-y snap-mandatory
+        `}
+      >
+        <ul className="space-y-2">
+          {items.length === 0 ? (
+            <li className="rounded-2xl border border-pink-200/30 dark:border-pink-900/30 bg-white/70 dark:bg-neutral-900/60 backdrop-blur-md shadow-sm p-4 text-sm">
+              <div className="text-center">
+                <div className="text-2xl mb-1">💔</div>
+                <p className="opacity-80">Rien à faire à deux ? Ajoutez une idée !</p>
+              </div>
+            </li>
+          ) : (
+            items
+              .sort(
+                (a, b) =>
+                  Number(a.is_done) - Number(b.is_done) ||
+                  a.created_at.localeCompare(b.created_at)
+              )
+              .map((item) => {
+                const itemClasses = item.is_done
+                  ? 'bg-white/40 dark:bg-neutral-800/40 border-black/10 dark:border-white/10'
+                  : 'border-pink-200/20 dark:border-pink-900/25 bg-white/80 dark:bg-neutral-900/70';
+                return (
+                  <li
+                    key={item.id}
+                    className={`snap-start rounded-2xl shadow-sm p-4 sm:p-4 flex items-center justify-between gap-3 border backdrop-blur-md ${itemClasses}`}
+                  >
+                    <button
+                      className="shrink-0 p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition-transform active:scale-90"
+                      onClick={() => toggleItem(item.id, item.is_done)}
+                      aria-label={item.is_done ? 'Marquer non fait' : 'Marquer fait'}
+                      title={item.is_done ? 'Marquer non fait' : 'Marquer fait'}
+                    >
+                      {item.is_done ? (
+                        <CheckCircle2 className="h-6 w-6 text-emerald-500" />
+                      ) : (
+                        <Circle className="h-6 w-6 text-pink-500" />
+                      )}
+                    </button>
+
+                    <div className="flex-1">
+                      <p className={`text-base sm:text-lg ${item.is_done ? 'line-through opacity-60' : ''}`}>
+                        {item.title}
+                      </p>
+                      {item.is_done && item.done_at && (
+                        <p className="text-xs opacity-60">
+                          Fait le {new Date(item.done_at).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+
+                    <button
+                      className="shrink-0 inline-flex items-center gap-1 rounded-lg px-2 py-1 hover:bg-black/5 dark:hover:bg-white/10 transition active:scale-95"
+                      onClick={() => delItem(item.id)}
+                      aria-label="Supprimer"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </li>
+                );
+              })
+          )}
+        </ul>
+      </section>
+
+      {/* hide scrollbar utility */}
+      <style jsx global>{`
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
     </main>
   );
 }

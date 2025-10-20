@@ -1,139 +1,82 @@
--- Extensions utiles
-create extension if not exists pgcrypto;
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
 
--- profils alignés sur auth.users (on garde simple)
-create table public.profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
+CREATE TABLE public.bucket_items (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  couple_id uuid NOT NULL,
+  author_id uuid NOT NULL,
+  title text NOT NULL CHECK (length(TRIM(BOTH FROM title)) > 0),
+  is_done boolean NOT NULL DEFAULT false,
+  done_at timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT bucket_items_pkey PRIMARY KEY (id),
+  CONSTRAINT bucket_items_couple_id_fkey FOREIGN KEY (couple_id) REFERENCES public.couples(id),
+  CONSTRAINT bucket_items_author_id_fkey FOREIGN KEY (author_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.couple_events (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  couple_id uuid NOT NULL,
+  author_id uuid NOT NULL,
+  title text NOT NULL CHECK (length(TRIM(BOTH FROM title)) > 0),
+  starts_at timestamp with time zone NOT NULL,
+  ends_at timestamp with time zone,
+  notes text,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT couple_events_pkey PRIMARY KEY (id),
+  CONSTRAINT couple_events_couple_id_fkey FOREIGN KEY (couple_id) REFERENCES public.couples(id),
+  CONSTRAINT couple_events_author_id_fkey FOREIGN KEY (author_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.couple_members (
+  user_id uuid NOT NULL,
+  couple_id uuid NOT NULL,
+  role text DEFAULT 'partner'::text,
+  joined_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT couple_members_pkey PRIMARY KEY (user_id),
+  CONSTRAINT couple_members_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT couple_members_couple_id_fkey FOREIGN KEY (couple_id) REFERENCES public.couples(id)
+);
+CREATE TABLE public.couples (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  join_code text NOT NULL UNIQUE,
+  started_at date NOT NULL,
+  created_by uuid NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT couples_pkey PRIMARY KEY (id),
+  CONSTRAINT couples_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
+);
+CREATE TABLE public.love_notes (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  couple_id uuid NOT NULL,
+  author_id uuid NOT NULL,
+  content text NOT NULL CHECK (length(TRIM(BOTH FROM content)) > 0),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT love_notes_pkey PRIMARY KEY (id),
+  CONSTRAINT love_notes_couple_id_fkey FOREIGN KEY (couple_id) REFERENCES public.couples(id),
+  CONSTRAINT love_notes_author_id_fkey FOREIGN KEY (author_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.profiles (
+  id uuid NOT NULL,
   display_name text,
-  created_at timestamptz default now()
+  created_at timestamp with time zone DEFAULT now(),
+  first_name text,
+  avatar_url text,
+  CONSTRAINT profiles_pkey PRIMARY KEY (id),
+  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.push_subscriptions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  endpoint text NOT NULL UNIQUE,
+  p256dh text NOT NULL,
+  auth text NOT NULL,
+  ua text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT push_subscriptions_pkey PRIMARY KEY (id),
+  CONSTRAINT push_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
 
--- couples
-create table public.couples (
-  id uuid primary key default gen_random_uuid(),
-  join_code text not null unique,          -- code partage
-  started_at date not null,
-  created_by uuid not null references auth.users(id) on delete cascade,
-  created_at timestamptz default now()
-);
-
--- membership: 1 user -> 1 couple (unique), 2 membres max par couple (via trigger)
-create table public.couple_members (
-  user_id uuid primary key references auth.users(id) on delete cascade,
-  couple_id uuid not null references public.couples(id) on delete cascade,
-  role text default 'partner',
-  joined_at timestamptz default now()
-);
-
--- 🔒 1 user = 1 couple
-create unique index on public.couple_members(user_id);
-
--- helper pour status rapide
-create view public.my_couple_status as
-select
-  cm.user_id,
-  c.id as couple_id,
-  c.join_code,
-  c.started_at,
-  (select count(*) from public.couple_members cm2 where cm2.couple_id = c.id) as members_count
-from public.couple_members cm
-join public.couples c on c.id = cm.couple_id;
-
--- ==== Génération de code court (6 alphanum) ====
-create or replace function public.gen_join_code()
-returns text language plpgsql as $$
-declare code text;
-begin
-  loop
-    code := upper(substr(encode(digest(gen_random_uuid()::text, 'sha1'), 'hex'), 1, 6));
-    exit when not exists (select 1 from public.couples where join_code = code);
-  end loop;
-  return code;
-end;
-$$;
-
--- ==== Trigger: max 2 membres par couple ====
-create or replace function public.enforce_max_two_members()
-returns trigger language plpgsql as $$
-declare cnt int;
-begin
-  select count(*) into cnt from public.couple_members where couple_id = new.couple_id;
-  if cnt >= 2 then
-    raise exception 'Ce couple a déjà 2 membres';
-  end if;
-  return new;
-end;
-$$;
-
-create trigger trg_max_two_members
-before insert on public.couple_members
-for each row execute function public.enforce_max_two_members();
-
--- ==== RPC sécurisées (SECURITY DEFINER) ====
-
--- Créer un couple + ajouter l’utilisateur courant
-create or replace function public.create_couple(p_started_at date)
-returns table (couple_id uuid, join_code text)
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare uid uuid := auth.uid();
-declare new_couple_id uuid;
-declare code text;
-begin
-  if uid is null then
-    raise exception 'Non authentifié';
-  end if;
-
-  -- refuse si déjà membre d’un couple
-  if exists (select 1 from public.couple_members where user_id = uid) then
-    raise exception 'Déjà dans un couple';
-  end if;
-
-  code := public.gen_join_code();
-
-  insert into public.couples(id, join_code, started_at, created_by)
-  values (gen_random_uuid(), code, p_started_at, uid)
-  returning id into new_couple_id;
-
-  insert into public.couple_members(user_id, couple_id) values (uid, new_couple_id);
-
-  return query select new_couple_id, code;
-end;
-$$;
-
--- Rejoindre un couple via code
-create or replace function public.join_couple(p_join_code text)
-returns table (couple_id uuid)
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare uid uuid := auth.uid();
-declare target uuid;
-declare members int;
-begin
-  if uid is null then
-    raise exception 'Non authentifié';
-  end if;
-
-  if exists (select 1 from public.couple_members where user_id = uid) then
-    raise exception 'Déjà dans un couple';
-  end if;
-
-  select id into target from public.couples where join_code = upper(p_join_code);
-  if target is null then
-    raise exception 'Code invalide';
-  end if;
-
-  select count(*) into members from public.couple_members where couple_id = target;
-  if members >= 2 then
-    raise exception 'Ce couple est complet';
-  end if;
-
-  insert into public.couple_members(user_id, couple_id) values (uid, target);
-
-  return query select target;
-end;
-$$;
+-- Indexes (context)
+CREATE INDEX IF NOT EXISTS idx_love_notes_couple_created_at ON public.love_notes (couple_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bucket_items_couple_done_created_at ON public.bucket_items (couple_id, is_done, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_couple_events_couple_starts_at ON public.couple_events (couple_id, starts_at);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON public.push_subscriptions (user_id);

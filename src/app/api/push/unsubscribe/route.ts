@@ -1,6 +1,6 @@
 export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
-import { cookies as nextCookies, headers } from 'next/headers';
+import { cookies as nextCookies, headers as nextHeaders } from 'next/headers';
 import type { CookieOptions } from '@supabase/ssr';
 import { createServerClient } from '@supabase/ssr';
 
@@ -12,24 +12,29 @@ export async function POST(req: Request) {
   const { endpoint } = body || {};
   if (!endpoint) return NextResponse.json({ error: 'missing endpoint' }, { status: 400 });
 
-  const cookieStore = nextCookies();
+  const cookieStore = await nextCookies();
+  const hdrs = await nextHeaders();
+
   const supabase = createServerClient(
-   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-   {
-     cookies: {
-       getAll() {
-         return cookieStore.getAll();
-       },
-       setAll(cookiesToSet) {
-         cookiesToSet.forEach(({ name, value, options }) => {
-           cookieStore.set(name, value, options as CookieOptions);
-         });
-       },
-     },
-     headers,
-   }
- );
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          // cookieStore.getAll est OK une fois cookies() awaited
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            // CookieOptions vient de @supabase/ssr
+            cookieStore.set(name, value, options as CookieOptions);
+          });
+        },
+      },
+      headers: hdrs,
+    }
+  );
+
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
 

@@ -5,6 +5,7 @@ import { Moon, Sun } from 'lucide-react';
 
 export default function DarkModeToggle() {
   const { theme, setTheme, resolvedTheme } = useTheme();
+  console.log('theme actuel:', theme)
   const [mounted, setMounted] = useState(false);
 
   // ✅ évite le mismatch: on attend le mount client

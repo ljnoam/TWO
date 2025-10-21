@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { CalendarPlus, Trash2, Clock3 } from "lucide-react";
+import EventCard, { type CalendarEvent } from "@/components/calendar/EventCard";
+import EventForm from "@/components/calendar/EventForm";
 
 type EventRow = {
   id: string;
@@ -14,6 +16,7 @@ type EventRow = {
   ends_at: string | null;
   notes: string | null;
   created_at: string;
+  all_day?: boolean;
 };
 
 export default function CalendarPage() {
@@ -21,12 +24,16 @@ export default function CalendarPage() {
   const [me, setMe] = useState<string | null>(null);
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [items, setItems] = useState<EventRow[]>([]);
+  const [editing, setEditing] = useState<EventRow | null>(null);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
 
   // form state
   const [title, setTitle] = useState("");
   const [start, setStart] = useState<string>("");
   const [end, setEnd] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
+  const [allDay, setAllDay] = useState<boolean>(false);
+  const params = useSearchParams();
 
   useEffect(() => {
     (async () => {
@@ -43,13 +50,24 @@ export default function CalendarPage() {
       if (st.members_count < 2) { router.replace('/waiting'); return; }
       setCoupleId(st.couple_id);
 
-      const { data } = await supabase
-        .from('couple_events')
-        .select('id, couple_id, author_id, title, starts_at, ends_at, notes, created_at')
-        .eq('couple_id', st.couple_id)
-        .gte('starts_at', new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString())
-        .order('starts_at', { ascending: true });
-      setItems(data ?? []);
+      let list: EventRow[] | null = null;
+      if (!navigator.onLine) {
+        try {
+          const cached = localStorage.getItem(`cache_events_${st.couple_id}`);
+          if (cached) list = JSON.parse(cached);
+        } catch {}
+      }
+      if (!list) {
+        const { data } = await supabase
+          .from('couple_events')
+          .select('id, couple_id, author_id, title, starts_at, ends_at, notes, created_at, all_day')
+          .eq('couple_id', st.couple_id)
+          .gte('starts_at', new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString())
+          .order('starts_at', { ascending: true });
+        list = (data ?? []) as EventRow[];
+        try { localStorage.setItem(`cache_events_${st.couple_id}`, JSON.stringify(list)); } catch {}
+      }
+      setItems(list ?? []);
     })();
   }, [router]);
 
@@ -91,11 +109,13 @@ export default function CalendarPage() {
       if (!coupleId || document.hidden) return;
       const { data } = await supabase
         .from('couple_events')
-        .select('id, couple_id, author_id, title, starts_at, ends_at, notes, created_at')
+        .select('id, couple_id, author_id, title, starts_at, ends_at, notes, created_at, all_day')
         .eq('couple_id', coupleId)
         .gte('starts_at', new Date(Date.now() - 1 * 24 * 3600 * 1000).toISOString())
         .order('starts_at', { ascending: true });
-      setItems(data ?? []);
+      const next = data ?? [];
+      setItems(next);
+      try { localStorage.setItem(`cache_events_${coupleId}`, JSON.stringify(next)); } catch {}
     }
     document.addEventListener('visibilitychange', refetch);
     return () => document.removeEventListener('visibilitychange', refetch);
@@ -104,8 +124,29 @@ export default function CalendarPage() {
   async function addEvent() {
     const t = title.trim();
     if (!t || !start || !me || !coupleId) return;
-    const starts_at = new Date(start).toISOString();
-    const ends_at = end ? new Date(end).toISOString() : null;
+    let starts_at = new Date(start).toISOString();
+    let ends_at: string | null = end ? new Date(end).toISOString() : null;
+    if (allDay) {
+      const d = new Date(start);
+      d.setHours(0, 0, 0, 0);
+      starts_at = d.toISOString();
+      ends_at = null;
+    }
+    if (!navigator.onLine) {
+      const { enqueueOutbox } = await import('@/lib/outbox');
+      await enqueueOutbox('event', {
+        title: t,
+        starts_at,
+        ends_at,
+        notes: notes.trim() || null,
+        author_id: me,
+        couple_id: coupleId,
+        all_day: allDay,
+      });
+      console.log('[offline] event queued');
+      setTitle(""); setStart(""); setEnd(""); setNotes("");
+      return;
+    }
 
     const { error } = await supabase.from('couple_events').insert({
       title: t,
@@ -114,9 +155,10 @@ export default function CalendarPage() {
       notes: notes.trim() || null,
       author_id: me,
       couple_id: coupleId,
+      all_day: allDay,
     });
     if (error) { alert(error.message); return; }
-    setTitle(""); setStart(""); setEnd(""); setNotes("");
+    setTitle(""); setStart(""); setEnd(""); setNotes(""); setAllDay(false);
 
     try {
       await fetch('/api/push/notify', {
@@ -134,19 +176,33 @@ export default function CalendarPage() {
     if (error) alert(error.message);
   }
 
+  // Deeplink focus (?event=<id>)
+  useEffect(() => {
+    const target = params?.get('event');
+    if (!target) return;
+    const el = document.getElementById(`event-${target}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightId(target);
+      const t = setTimeout(() => setHighlightId(null), 2500);
+      return () => clearTimeout(t);
+    }
+  }, [params, items.length]);
+
   const grouped = useMemo(() => {
+    // map by day, sorted
     const out = new Map<string, EventRow[]>();
     const today = new Date(); today.setHours(0,0,0,0);
-    items
+    const sorted = [...items]
       .filter(i => new Date(i.starts_at).getTime() >= today.getTime() - 24*3600*1000)
-      .sort((a,b) => a.starts_at.localeCompare(b.starts_at))
-      .forEach(ev => {
-        const d = new Date(ev.starts_at);
-        const key = d.toISOString().slice(0,10);
-        const arr = out.get(key) || [];
-        arr.push(ev);
-        out.set(key, arr);
-      });
+      .sort((a,b) => a.starts_at.localeCompare(b.starts_at));
+    for (const ev of sorted) {
+      const d = new Date(ev.starts_at);
+      const key = d.toISOString().slice(0,10);
+      const arr = out.get(key) || [];
+      arr.push(ev);
+      out.set(key, arr);
+    }
     return out;
   }, [items]);
 
@@ -160,11 +216,11 @@ export default function CalendarPage() {
       }
       className={`
         w-full max-w-3xl mx-auto
-        min-h-[100svh]
+        h-[100svh]
         overflow-hidden
         px-3 sm:px-4
         pt-[calc(env(safe-area-inset-top)+var(--gap))]
-        pb-[calc(env(safe-area-inset-bottom)+var(--nav-h)+var(--gap))]
+        pb-[calc(env(safe-area-inset-bottom)+96px)]
         flex flex-col
       `}
     >
@@ -187,6 +243,10 @@ export default function CalendarPage() {
               placeholder="Titre"
               className="rounded-xl border border-black/10 dark:border-white/10 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-black/10 dark:focus:ring-white/10"
             />
+            <label className="inline-flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
+              Évènement sur une journée
+            </label>
             <input
               type="datetime-local"
               value={start}
@@ -220,11 +280,12 @@ export default function CalendarPage() {
         </div>
       </section>
 
-      {/* === LISTE SCROLLABLE SEULE === */}
+      {/* === LISTE (scroll dans une box) === */}
       <section
         className={`
-          flex-1 overflow-y-auto no-scrollbar
+          flex-1 min-h-0 overflow-y-auto no-scrollbar overscroll-contain
           mt-8
+          pb-[calc(env(safe-area-inset-bottom)+96px)]
         `}
       >
         <div className="space-y-4">
@@ -271,6 +332,13 @@ export default function CalendarPage() {
                     <div className="shrink-0 flex items-center gap-2">
                       <button
                         className="rounded-lg px-2 py-1 hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition"
+                        title="Éditer"
+                        onClick={() => setEditing(ev)}
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        className="rounded-lg px-2 py-1 hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition"
                         title="Supprimer"
                         onClick={() => deleteEvent(ev.id)}
                       >
@@ -304,6 +372,35 @@ export default function CalendarPage() {
           display: none;
         }
       `}</style>
+      {editing && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4">
+          <EventForm
+            initial={{
+              id: editing.id,
+              title: editing.title,
+              starts_at: editing.starts_at,
+              ends_at: editing.ends_at,
+              notes: editing.notes || '',
+              all_day: !!editing.all_day,
+              couple_id: coupleId!,
+              author_id: me!,
+            }}
+            onCancel={() => setEditing(null)}
+            onSubmit={async (vals) => {
+              setItems(prev => prev.map(i => i.id === editing.id ? { ...i, ...vals, starts_at: vals.starts_at, ends_at: vals.ends_at, all_day: vals.all_day } as any : i));
+              setEditing(null);
+              const { error } = await supabase.from('couple_events').update({
+                title: vals.title,
+                starts_at: vals.starts_at,
+                ends_at: vals.ends_at,
+                notes: vals.notes,
+                all_day: vals.all_day,
+              }).eq('id', editing.id);
+              if (error) alert(error.message);
+            }}
+          />
+        </div>
+      )}    
     </main>
   );
-}
+}    

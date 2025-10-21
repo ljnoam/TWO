@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import ScrollStack, { ScrollStackItem } from './ScrollStack';
 
@@ -14,9 +14,17 @@ export type Note = {
 export default function NoteCard({
   note,
   onDelete,
+  sent = false,
+  reactionCounts,
+  myReaction,
+  onToggleReaction,
 }: {
   note: Note;
   onDelete: (id: string) => void;
+  sent?: boolean;
+  reactionCounts?: Record<'❤️' | '😆' | '🥲', number>;
+  myReaction?: '❤️' | '😆' | '🥲' | null;
+  onToggleReaction?: (emoji: '❤️' | '😆' | '🥲') => void;
 }) {
   // Derivations UI only
   const { title, body } = useMemo(() => {
@@ -29,7 +37,7 @@ export default function NoteCard({
   const dateLabel = useMemo(() => {
     try {
       const d = new Date(note.created_at);
-      return d.toLocaleDateString();
+      return d.toLocaleDateString('fr-FR');
     } catch {
       return note.created_at;
     }
@@ -66,46 +74,87 @@ export default function NoteCard({
           {body ? body : <p className="opacity-70 italic">Aucun contenu supplémentaire…</p>}
         </div>
 
-        {/* Footer actions */}
-        <div className="mt-5 flex items-center justify-between text-xs opacity-70">
-          <span>Reçu le {dateLabel}</span>
+        {/* Reactions + footer */}
+        <div className="mt-5 flex items-center justify-between">
+          <div className="inline-flex items-center gap-2 rounded-full border border-black/10 dark:border-white/10 bg-white/60 dark:bg-neutral-800/60 px-2 py-1">
+            {(['❤️', '😆', '🥲'] as const).map((e) => {
+              const active = myReaction === e;
+              const count = reactionCounts?.[e] ?? 0;
+              return (
+                <button
+                  key={e}
+                  type="button"
+                  onClick={() => onToggleReaction && onToggleReaction(e)}
+                  aria-pressed={active}
+                  aria-label={`Réagir ${e}`}
+                  className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500/40 ${active ? 'bg-pink-100/70 text-pink-700 dark:bg-pink-900/30 dark:text-pink-200' : 'hover:bg-black/5 dark:hover:bg-white/10'}`}
+                >
+                  <span>{e}</span>
+                  <span className="text-xs opacity-70 tabular-nums">{count}</span>
+                </button>
+              );
+            })}
+          </div>
 
-          <button
-            onClick={() => onDelete(note.id)}
-            aria-label="Supprimer cette note"
-            className="inline-flex items-center gap-1 rounded-xl border border-black/10 dark:border-white/10 px-3 py-1.5 text-xs font-medium hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition"
-          >
-            <Trash2 className="h-4 w-4" />
-            Supprimer
-          </button>
+          <div className="text-xs opacity-70 inline-flex items-center gap-3">
+            <span>{sent ? 'Envoyé le' : 'Reçu le'} {dateLabel}</span>
+            <button
+              onClick={() => onDelete(note.id)}
+              aria-label="Supprimer cette note"
+              className="inline-flex items-center gap-1 rounded-xl border border-black/10 dark:border-white/10 px-3 py-1.5 text-xs font-medium hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition"
+            >
+              <Trash2 className="h-4 w-4" />
+              Supprimer
+            </button>
+          </div>
         </div>
       </article>
     </ScrollStackItem>
   );
 }
 
-/** Optionnel: wrapper pratique */
+/** Wrapper pratique avec pagination dots */
 export function NoteStack({
   children,
   className = '',
+  showDots = true,
 }: {
   children: React.ReactNode;
   className?: string;
+  showDots?: boolean;
 }) {
+  const total = React.Children.count(children);
+  const [active, setActive] = useState(0);
   return (
-    <ScrollStack
-      className={`overflow-x-hidden w-full h-[80vh] ${className}`}
-      itemDistance={100}
-      itemScale={0.03}
-      itemStackDistance={30}
-      stackPosition="20%"
-      scaleEndPosition="10%"
-      baseScale={0.85}
-      rotationAmount={0}
-      blurAmount={0.75}
-      useWindowScroll={false}
-    >
-      {children}
-    </ScrollStack>
+    <div className={`relative overflow-hidden w-full h-[80vh] ${className}`}>
+      <ScrollStack
+        className={`overflow-x-hidden w-full h-full`}
+        itemDistance={90}
+        itemScale={0.035}
+        itemStackDistance={30}
+        stackPosition="20%"
+        scaleEndPosition="10%"
+        baseScale={0.86}
+        rotationAmount={0}
+        blurAmount={1.0}
+        useWindowScroll={false}
+        onActiveIndexChange={(i) => setActive(i)}
+      >
+        {children}
+      </ScrollStack>
+
+      {showDots && total > 1 && (
+        <div className="pointer-events-none absolute left-0 right-0 bottom-6 flex items-center justify-center gap-2">
+          {Array.from({ length: total }).map((_, i) => (
+            <span
+              key={i}
+              aria-hidden
+              className={`${i === active ? 'w-3 bg-pink-500' : 'w-2 bg-black/20 dark:bg-white/20'} h-2 rounded-full transition-all`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
+

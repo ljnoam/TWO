@@ -32,6 +32,7 @@ interface ScrollStackProps {
   blurAmount?: number;
   useWindowScroll?: boolean;
   onStackComplete?: () => void;
+  onActiveIndexChange?: (index: number, total: number) => void;
 }
 
 const ScrollStack: React.FC<ScrollStackProps> = ({
@@ -47,7 +48,8 @@ const ScrollStack: React.FC<ScrollStackProps> = ({
   rotationAmount = 0,
   blurAmount = 0,
   useWindowScroll = false,
-  onStackComplete
+  onStackComplete,
+  onActiveIndexChange
 }) => {
   const scrollerRef = useRef<HTMLDivElement>(null);
   const stackCompletedRef = useRef(false);
@@ -56,6 +58,7 @@ const ScrollStack: React.FC<ScrollStackProps> = ({
   const cardsRef = useRef<HTMLElement[]>([]);
   const lastTransformsRef = useRef(new Map<number, any>());
   const isUpdatingRef = useRef(false);
+  const lastActiveIndexRef = useRef<number>(0);
 
   const calculateProgress = useCallback((scrollTop: number, start: number, end: number) => {
     if (scrollTop < start) return 0;
@@ -114,6 +117,15 @@ const ScrollStack: React.FC<ScrollStackProps> = ({
 
     const endElementTop = endElement ? getElementOffset(endElement) : 0;
 
+    // Determine the top card index for pagination/dots and blur depth
+    let topCardIndex = 0;
+    for (let j = 0; j < cardsRef.current.length; j++) {
+      const jCard = cardsRef.current[j];
+      const jCardTop = getElementOffset(jCard);
+      const jTriggerStart = jCardTop - stackPositionPx - itemStackDistance * j;
+      if (scrollTop >= jTriggerStart) topCardIndex = j;
+    }
+
     cardsRef.current.forEach((card, i) => {
       if (!card) return;
 
@@ -130,14 +142,6 @@ const ScrollStack: React.FC<ScrollStackProps> = ({
 
       let blur = 0;
       if (blurAmount) {
-        let topCardIndex = 0;
-        for (let j = 0; j < cardsRef.current.length; j++) {
-          const jCardTop = getElementOffset(cardsRef.current[j]);
-          const jTriggerStart = jCardTop - stackPositionPx - itemStackDistance * j;
-          if (scrollTop >= jTriggerStart) {
-            topCardIndex = j;
-          }
-        }
         if (i < topCardIndex) {
           const depthInStack = topCardIndex - i;
           blur = Math.max(0, depthInStack * blurAmount);
@@ -179,6 +183,12 @@ const ScrollStack: React.FC<ScrollStackProps> = ({
       }
     });
 
+    // Notify active index changes
+    if (onActiveIndexChange && lastActiveIndexRef.current !== topCardIndex) {
+      lastActiveIndexRef.current = topCardIndex;
+      try { onActiveIndexChange(topCardIndex, cardsRef.current.length); } catch {}
+    }
+
     isUpdatingRef.current = false;
   }, [
     itemScale,
@@ -192,7 +202,8 @@ const ScrollStack: React.FC<ScrollStackProps> = ({
     calculateProgress,
     parsePercentage,
     getScrollData,
-    getElementOffset
+    getElementOffset,
+    onActiveIndexChange
   ]);
 
   const handleScroll = useCallback(() => {

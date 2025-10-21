@@ -1,7 +1,6 @@
 export const runtime = 'nodejs';
 import { NextResponse } from 'next/server';
-import { cookies as nextCookies, headers as nextHeaders } from 'next/headers';
-import type { CookieOptions } from '@supabase/ssr';
+import { cookies, headers } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 
 export async function POST(req: Request) {
@@ -14,24 +13,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'invalid subscription' }, { status: 400 });
   }
 
-  const cookieStore = await nextCookies();
-  const hdrs = await nextHeaders();
+  const cookieStore = await cookies();
+  const hdrs = await headers();
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          // cookieStore.getAll est OK une fois cookies() awaited
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            // CookieOptions vient de @supabase/ssr
-            cookieStore.set(name, value, options as CookieOptions);
-          });
-        },
+        getAll: () => cookieStore.getAll(),
+        setAll: (cookiesToSet) => cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options as any)),
       },
       headers: hdrs,
     }

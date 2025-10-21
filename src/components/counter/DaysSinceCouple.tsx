@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase/client';
+import { Heart } from 'lucide-react';
 
 type Status = {
   started_at: string | null;
@@ -77,9 +78,9 @@ export default function DaysSinceCouple() {
   // UI
   if (loading) {
     return (
-      <div className="animate-pulse rounded-3xl border border-black/10 dark:border-white/10 bg-white/60 dark:bg-neutral-900/50 backdrop-blur-md shadow-lg p-5 sm:p-6">
-        <div className="h-4 w-24 rounded bg-black/10 dark:bg-white/10 mb-3" />
-        <div className="h-10 w-40 rounded bg-black/10 dark:bg-white/10" />
+      <div className="animate-pulse rounded-3xl border border-black/10 dark:border-white/10 bg-gradient-to-br from-rose-50/70 via-white/60 to-pink-50/70 dark:from-neutral-900/50 dark:via-neutral-900/60 dark:to-neutral-800/50 backdrop-blur-md shadow-xl p-5 sm:p-6">
+        <div className="h-4 w-28 rounded bg-black/10 dark:bg-white/10 mb-3" />
+        <div className="h-10 w-44 rounded bg-black/10 dark:bg-white/10" />
       </div>
     );
   }
@@ -93,12 +94,15 @@ export default function DaysSinceCouple() {
     <div
       className="
         rounded-3xl border border-black/10 dark:border-white/10
-        bg-white/70 dark:bg-neutral-900/60 backdrop-blur-md shadow-lg
-        supports-[backdrop-filter]:backdrop-blur
+        bg-gradient-to-br from-rose-50/80 via-white/70 to-pink-50/80 dark:from-neutral-900/60 dark:via-neutral-900/60 dark:to-neutral-800/60
+        backdrop-blur-md shadow-xl
         p-5 sm:p-6
       "
     >
-      <div className="text-sm sm:text-base opacity-70">En couple depuis</div>
+      <div className="flex items-center gap-2 text-sm sm:text-base opacity-80">
+        <Heart className="h-4 w-4 text-pink-600 dark:text-pink-400 heart-beat" aria-hidden />
+        <span>En couple depuis</span>
+      </div>
       <div className="mt-1 flex items-baseline gap-2">
         <span className="text-4xl sm:text-5xl font-extrabold tabular-nums leading-none">
           {days}
@@ -106,7 +110,7 @@ export default function DaysSinceCouple() {
         <span className="text-base sm:text-lg font-medium">jours</span>
       </div>
       <div className="mt-2 text-xs sm:text-sm opacity-60">
-        Date: {new Date(status.started_at).toLocaleDateString()}
+        Date: {new Date(status.started_at).toLocaleDateString('fr-FR')}
       </div>
     </div>
   );

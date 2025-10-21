@@ -1,6 +1,6 @@
 {
-  "name": "Nous2",
-  "short_name": "Nous2",
+  "name": "Nous",
+  "short_name": "Nous",
   "description": "App de couple ❤️",
   "start_url": "/",
   "display": "standalone",
@@ -22,7 +22,13 @@
       "src": "/icons/maskable_icon.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "maskable"
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/apple-icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }

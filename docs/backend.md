@@ -57,6 +57,16 @@ Push API and cleanup
 - `/api/push/notify` looks up partner subscriptions via RLS (no custom joins) and removes stale endpoints (410/404)
 - Service worker reads `event.data.json()` and opens `notification.data.url`
 
+Scheduled reminders (calendar)
+
+- Edge Function `event-reminders` queries upcoming events and triggers push reminders:
+  - Hour reminder: events starting in ~1 hour (55–65 min window)
+  - Day reminder: events happening tomorrow (midnight ±5 min window)
+- Deploy: `supabase functions deploy event-reminders`
+- Schedule: Supabase Dashboard → Edge Functions → Schedules → Cron `*/5 * * * *`
+- Env (Edge Function): `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `APP_BASE_URL`, `PUSH_CRON_SECRET`
+- The function calls your app `POST /api/push/notify` with header `x-server-auth: PUSH_CRON_SECRET`, passing `targets` and `url: '/calendar?event=<id>'` for deep links.
+
 Testing (two browsers/profiles)
 
 - Allow notifications and subscribe (Profile)
@@ -73,4 +83,3 @@ QA checklist
 - [ ] SSR cookies: no `getAll/setAll required` errors
 - [ ] Realtime publication: `love_notes`, `bucket_items`, `couple_events` included and enabled
 - [ ] `.env.example` filled and documented
-

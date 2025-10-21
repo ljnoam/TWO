@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
-import { Plus, CheckCircle2, Circle, Trash2 } from 'lucide-react';
+import { Plus, CheckCircle2, Circle, Trash2, GripVertical, CalendarPlus } from 'lucide-react';
 
 type Item = {
   id: string;
@@ -13,6 +13,7 @@ type Item = {
   is_done: boolean;
   done_at: string | null;
   created_at: string;
+  position?: number;
 };
 
 export default function BucketPage() {
@@ -21,6 +22,10 @@ export default function BucketPage() {
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [input, setInput] = useState('');
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [convertFor, setConvertFor] = useState<{ id: string; title: string } | null>(null);
+  const [convertAt, setConvertAt] = useState<string>('');
+  const [deleteAfterConvert, setDeleteAfterConvert] = useState(true);
 
   // Guards + fetch initial
   useEffect(() => {
@@ -49,14 +54,26 @@ export default function BucketPage() {
 
       setCoupleId(st.couple_id);
 
-      const { data } = await supabase
-        .from('bucket_items')
-        .select('id, couple_id, author_id, title, is_done, done_at, created_at')
-        .eq('couple_id', st.couple_id)
-        .order('is_done', { ascending: true })
-        .order('created_at', { ascending: true });
+      let list: Item[] | null = null;
+      if (!navigator.onLine) {
+        try {
+          const cached = localStorage.getItem(`cache_bucket_${st.couple_id}`);
+          if (cached) list = JSON.parse(cached);
+        } catch {}
+      }
+      if (!list) {
+        const { data } = await supabase
+          .from('bucket_items')
+          .select('id, couple_id, author_id, title, is_done, done_at, created_at, position')
+          .eq('couple_id', st.couple_id)
+          .order('is_done', { ascending: true })
+          .order('position', { ascending: true })
+          .order('created_at', { ascending: true });
+        list = (data ?? []) as Item[];
+        try { localStorage.setItem(`cache_bucket_${st.couple_id}`, JSON.stringify(list)); } catch {}
+      }
 
-      setItems(data ?? []);
+      setItems(list ?? []);
     })();
   }, [router]);
 
@@ -99,27 +116,66 @@ export default function BucketPage() {
       if (!coupleId || document.hidden) return;
       const { data } = await supabase
         .from('bucket_items')
-        .select('id, couple_id, author_id, title, is_done, done_at, created_at')
+        .select('id, couple_id, author_id, title, is_done, done_at, created_at, position')
         .eq('couple_id', coupleId)
         .order('is_done', { ascending: true })
+        .order('position', { ascending: true })
         .order('created_at', { ascending: true });
-      setItems(data ?? []);
+      const next = (data ?? []) as Item[];
+      setItems(next);
+      try { localStorage.setItem(`cache_bucket_${coupleId}`, JSON.stringify(next)); } catch {}
     }
     document.addEventListener('visibilitychange', refetch);
     return () => document.removeEventListener('visibilitychange', refetch);
   }, [coupleId]);
 
   const remaining = useMemo(() => items.filter((i) => !i.is_done).length, [items]);
+  const doneCount = useMemo(() => items.filter((i) => i.is_done).length, [items]);
+  const total = items.length;
+  const percent = total ? Math.round((doneCount / total) * 100) : 0;
+
+  function reorderUndone(list: Item[], fromId: string, toId: string) {
+    const undone = list.filter((i) => !i.is_done);
+    const others = list.filter((i) => i.is_done);
+    const fromIdx = undone.findIndex((i) => i.id === fromId);
+    const toIdx = undone.findIndex((i) => i.id === toId);
+    if (fromIdx < 0 || toIdx < 0) return list;
+    const arr = undone.slice();
+    const [moved] = arr.splice(fromIdx, 1);
+    arr.splice(toIdx, 0, moved);
+    return [...arr.map((i, idx) => ({ ...i, position: idx })), ...others];
+  }
+
+  async function persistPositions() {
+    if (!coupleId) return;
+    const undone = items.filter((i) => !i.is_done);
+    await Promise.all(
+      undone.map((i, idx) => {
+        if ((i.position ?? idx) !== idx) {
+          return supabase.from('bucket_items').update({ position: idx }).eq('id', i.id);
+        }
+        return Promise.resolve({});
+      })
+    );
+  }
 
   // ➕ Ajouter
   async function addItem() {
     const title = input.trim();
     if (!title || !me || !coupleId) return;
     setInput('');
+    const maxPos = Math.max(-1, ...items.filter((i) => !i.is_done).map((i) => i.position ?? -1)) + 1;
+    if (!navigator.onLine) {
+      const { enqueueOutbox } = await import('@/lib/outbox');
+      await enqueueOutbox('bucket_item', { title, couple_id: coupleId, author_id: me, position: maxPos });
+      console.log('[offline] bucket item queued');
+      return;
+    }
     const { error } = await supabase.from('bucket_items').insert({
       title,
       couple_id: coupleId,
       author_id: me,
+      position: maxPos,
     });
 
     if (error) {
@@ -174,11 +230,11 @@ export default function BucketPage() {
       }
       className={`
         w-full max-w-3xl mx-auto
-        min-h-[100svh]
+        h-[100svh]
         overflow-hidden
         px-3 sm:px-4
         pt-[calc(env(safe-area-inset-top)+var(--gap))]
-        pb-[calc(env(safe-area-inset-bottom)+var(--nav-h)+var(--gap))]
+        pb-[calc(env(safe-area-inset-bottom)+96px)]
         flex flex-col
       `}
     >
@@ -215,12 +271,17 @@ export default function BucketPage() {
         </div>
       </section>
 
-      {/* === LISTE SCROLLABLE (seule zone scroll) === */}
+      <div className="px-3 sm:px-4 mt-[calc(var(--gap)*2+12px)] mb-2 max-w-3xl mx-auto text-xs opacity-70">
+        Stats • À faire: {remaining} • Faits: {doneCount} • {percent}%
+      </div>
+
+      {/* === LISTE (scroll dans une box) === */}
       <section
+        style={{ height: 'calc(100svh - (var(--gap) * 2 + 100px) - (env(safe-area-inset-bottom) + 96px))' }}
         className={`
-          flex-1 overflow-y-auto no-scrollbar
+          flex-1 min-h-0 overflow-y-auto no-scrollbar overscroll-contain
           mt-[calc(var(--gap)*2+100px)]  /* espace sous le composer */
-          pb-[calc(var(--nav-h)+var(--gap))]
+          pb-[calc(env(safe-area-inset-bottom)+96px)]
           snap-y snap-mandatory
         `}
       >
@@ -237,6 +298,7 @@ export default function BucketPage() {
               .sort(
                 (a, b) =>
                   Number(a.is_done) - Number(b.is_done) ||
+                  (a.position ?? 0) - (b.position ?? 0) ||
                   a.created_at.localeCompare(b.created_at)
               )
               .map((item) => {
@@ -247,7 +309,30 @@ export default function BucketPage() {
                   <li
                     key={item.id}
                     className={`snap-start rounded-2xl shadow-sm p-4 sm:p-4 flex items-center justify-between gap-3 border backdrop-blur-md ${itemClasses}`}
+                    onDragOver={(e) => {
+                      if (!draggingId || item.is_done) return;
+                      e.preventDefault();
+                      if (draggingId === item.id) return;
+                      setItems((prev) => reorderUndone(prev, draggingId, item.id));
+                    }}
+                    onDrop={(e) => {
+                      if (!draggingId) return;
+                      e.preventDefault();
+                      setDraggingId(null);
+                      void persistPositions();
+                    }}
                   >
+                    {!item.is_done && (
+                      <button
+                        className="shrink-0 p-1 rounded-lg cursor-grab active:cursor-grabbing hover:bg-black/5 dark:hover:bg-white/10"
+                        draggable
+                        aria-label="Réordonner"
+                        onDragStart={() => setDraggingId(item.id)}
+                        onDragEnd={() => { setDraggingId(null); void persistPositions(); }}
+                      >
+                        <GripVertical className="h-4 w-4 opacity-70" />
+                      </button>
+                    )}
                     <button
                       className="shrink-0 p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 transition-transform active:scale-90"
                       onClick={() => toggleItem(item.id, item.is_done)}
@@ -270,6 +355,48 @@ export default function BucketPage() {
                           Fait le {new Date(item.done_at).toLocaleDateString()}
                         </p>
                       )}
+                      {!item.is_done && convertFor?.id === item.id && (
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                          <input
+                            type="datetime-local"
+                            value={convertAt}
+                            onChange={(e) => setConvertAt(e.target.value)}
+                            className="rounded-lg border border-black/10 dark:border-white/10 bg-transparent px-2 py-1"
+                          />
+                          <label className="inline-flex items-center gap-1 text-xs opacity-80">
+                            <input type="checkbox" checked={deleteAfterConvert} onChange={(e) => setDeleteAfterConvert(e.target.checked)} />
+                            Supprimer après conversion
+                          </label>
+                          <button
+                            onClick={async () => {
+                              if (!me || !coupleId) return;
+                              const dt = convertAt || new Date().toISOString().slice(0,16);
+                              const starts_at = new Date(dt).toISOString();
+                              const { error } = await supabase.from('couple_events').insert({
+                                title: item.title,
+                                starts_at,
+                                ends_at: null,
+                                notes: null,
+                                author_id: me,
+                                couple_id: coupleId,
+                              });
+                              if (error) { alert(error.message); return; }
+                              setConvertFor(null);
+                              try {
+                                await fetch('/api/push/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'event', eventTitle: item.title, starts_at }) });
+                              } catch {}
+                              if (deleteAfterConvert) {
+                                const { error: delErr } = await supabase.from('bucket_items').delete().eq('id', item.id);
+                                if (delErr) console.warn('Suppression item après conversion a échoué', delErr.message);
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 rounded-lg px-2 py-1 border border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/10"
+                          >
+                            Créer l’évènement
+                          </button>
+                          <button onClick={() => setConvertFor(null)} className="text-xs opacity-70 hover:opacity-100">Annuler</button>
+                        </div>
+                      )}
                     </div>
 
                     <button
@@ -279,6 +406,19 @@ export default function BucketPage() {
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
+                    {!item.is_done && (
+                      <button
+                        onClick={() => {
+                          setConvertFor({ id: item.id, title: item.title });
+                          setConvertAt(new Date().toISOString().slice(0,16));
+                        }}
+                        className="shrink-0 inline-flex items-center gap-1 rounded-lg px-2 py-1 hover:bg-black/5 dark:hover:bg-white/10 transition"
+                        aria-label="Convertir en évènement"
+                        title="Convertir en évènement"
+                      >
+                        <CalendarPlus className="h-4 w-4" />
+                      </button>
+                    )}
                   </li>
                 );
               })

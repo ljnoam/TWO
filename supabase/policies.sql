@@ -1,328 +1,331 @@
-[
-  {
-    "schema": "public",
-    "table_name": "bucket_items",
-    "policy_name": "bucket: delete by member",
-    "command": "d",
-    "using_expression": "(EXISTS ( SELECT 1\n   FROM couple_members cm\n  WHERE ((cm.couple_id = bucket_items.couple_id) AND (cm.user_id = auth.uid()))))",
-    "with_check_expression": null,
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "public",
-    "table_name": "bucket_items",
-    "policy_name": "bucket: insert by member",
-    "command": "a",
-    "using_expression": null,
-    "with_check_expression": "((EXISTS ( SELECT 1\n   FROM couple_members cm\n  WHERE ((cm.couple_id = bucket_items.couple_id) AND (cm.user_id = auth.uid())))) AND (author_id = auth.uid()))",
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "public",
-    "table_name": "bucket_items",
-    "policy_name": "bucket: select in couple",
-    "command": "r",
-    "using_expression": "(EXISTS ( SELECT 1\n   FROM couple_members cm\n  WHERE ((cm.couple_id = bucket_items.couple_id) AND (cm.user_id = auth.uid()))))",
-    "with_check_expression": null,
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "public",
-    "table_name": "bucket_items",
-    "policy_name": "bucket: update by member",
-    "command": "w",
-    "using_expression": "(EXISTS ( SELECT 1\n   FROM couple_members cm\n  WHERE ((cm.couple_id = bucket_items.couple_id) AND (cm.user_id = auth.uid()))))",
-    "with_check_expression": null,
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "public",
-    "table_name": "couple_members",
-    "policy_name": "members: read own membership",
-    "command": "r",
-    "using_expression": "(user_id = auth.uid())",
-    "with_check_expression": null,
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "public",
-    "table_name": "couples",
-    "policy_name": "couples: read if member",
-    "command": "r",
-    "using_expression": "(EXISTS ( SELECT 1\n   FROM couple_members cm\n  WHERE ((cm.couple_id = couples.id) AND (cm.user_id = auth.uid()))))",
-    "with_check_expression": null,
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "public",
-    "table_name": "love_notes",
-    "policy_name": "notes: delete by couple member",
-    "command": "d",
-    "using_expression": "(EXISTS ( SELECT 1\n   FROM couple_members cm\n  WHERE ((cm.couple_id = love_notes.couple_id) AND (cm.user_id = auth.uid()))))",
-    "with_check_expression": null,
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "public",
-    "table_name": "love_notes",
-    "policy_name": "notes: insert by couple member",
-    "command": "a",
-    "using_expression": null,
-    "with_check_expression": "((EXISTS ( SELECT 1\n   FROM couple_members cm\n  WHERE ((cm.couple_id = love_notes.couple_id) AND (cm.user_id = auth.uid())))) AND (author_id = auth.uid()))",
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "public",
-    "table_name": "love_notes",
-    "policy_name": "notes: select if same couple",
-    "command": "r",
-    "using_expression": "(EXISTS ( SELECT 1\n   FROM couple_members cm\n  WHERE ((cm.couple_id = love_notes.couple_id) AND (cm.user_id = auth.uid()))))",
-    "with_check_expression": null,
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "public",
-    "table_name": "profiles",
-    "policy_name": "profiles: read self",
-    "command": "r",
-    "using_expression": "(id = auth.uid())",
-    "with_check_expression": null,
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "public",
-    "table_name": "profiles",
-    "policy_name": "profiles: select own",
-    "command": "r",
-    "using_expression": "(id = auth.uid())",
-    "with_check_expression": null,
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "public",
-    "table_name": "profiles",
-    "policy_name": "profiles: select same couple",
-    "command": "r",
-    "using_expression": "(EXISTS ( SELECT 1\n   FROM (couple_members cm1\n     JOIN couple_members cm2 ON ((cm1.couple_id = cm2.couple_id)))\n  WHERE ((cm1.user_id = auth.uid()) AND (cm2.user_id = profiles.id))))",
-    "with_check_expression": null,
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "public",
-    "table_name": "profiles",
-    "policy_name": "profiles: update own",
-    "command": "w",
-    "using_expression": "(id = auth.uid())",
-    "with_check_expression": null,
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "public",
-    "table_name": "profiles",
-    "policy_name": "profiles: update self",
-    "command": "w",
-    "using_expression": "(id = auth.uid())",
-    "with_check_expression": null,
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "public",
-    "table_name": "profiles",
-    "policy_name": "profiles: upsert self",
-    "command": "a",
-    "using_expression": null,
-    "with_check_expression": "(id = auth.uid())",
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "public",
-    "table_name": "push_subscriptions",
-    "policy_name": "push: delete own",
-    "command": "d",
-    "using_expression": "(user_id = auth.uid())",
-    "with_check_expression": null,
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "public",
-    "table_name": "push_subscriptions",
-    "policy_name": "push: insert own",
-    "command": "a",
-    "using_expression": null,
-    "with_check_expression": "(user_id = auth.uid())",
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "public",
-    "table_name": "push_subscriptions",
-    "policy_name": "push: select in same couple",
-    "command": "r",
-    "using_expression": "(EXISTS ( SELECT 1\n   FROM (couple_members cm1\n     JOIN couple_members cm2 ON ((cm1.couple_id = cm2.couple_id)))\n  WHERE ((cm1.user_id = auth.uid()) AND (cm2.user_id = push_subscriptions.user_id) AND (cm1.user_id <> cm2.user_id))))",
-    "with_check_expression": null,
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "public",
-    "table_name": "push_subscriptions",
-    "policy_name": "push: select own",
-    "command": "r",
-    "using_expression": "(user_id = auth.uid())",
-    "with_check_expression": null,
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "storage",
-    "table_name": "objects",
-    "policy_name": "avatars: public read",
-    "command": "r",
-    "using_expression": "(bucket_id = 'avatars'::text)",
-    "with_check_expression": null,
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "storage",
-    "table_name": "objects",
-    "policy_name": "avatars: user can insert own",
-    "command": "a",
-    "using_expression": null,
-    "with_check_expression": "((bucket_id = 'avatars'::text) AND (auth.role() = 'authenticated'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text))",
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "storage",
-    "table_name": "objects",
-    "policy_name": "avatars: user delete own",
-    "command": "d",
-    "using_expression": "((bucket_id = 'avatars'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text))",
-    "with_check_expression": null,
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "storage",
-    "table_name": "objects",
-    "policy_name": "avatars: user update own",
-    "command": "w",
-    "using_expression": "((bucket_id = 'avatars'::text) AND ((storage.foldername(name))[1] = (auth.uid())::text))",
-    "with_check_expression": null,
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "public",
-    "table_name": "couple_events",
-    "policy_name": "events: select in couple",
-    "command": "r",
-    "using_expression": "(EXISTS ( SELECT 1\n   FROM couple_members cm\n  WHERE ((cm.couple_id = couple_events.couple_id) AND (cm.user_id = auth.uid()))))",
-    "with_check_expression": null,
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "public",
-    "table_name": "couple_events",
-    "policy_name": "events: insert by member",
-    "command": "a",
-    "using_expression": null,
-    "with_check_expression": "((EXISTS ( SELECT 1\n   FROM couple_members cm\n  WHERE ((cm.couple_id = couple_events.couple_id) AND (cm.user_id = auth.uid())))) AND (author_id = auth.uid()))",
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "public",
-    "table_name": "couple_events",
-    "policy_name": "events: update by member",
-    "command": "w",
-    "using_expression": "(EXISTS ( SELECT 1\n   FROM couple_members cm\n  WHERE ((cm.couple_id = couple_events.couple_id) AND (cm.user_id = auth.uid()))))",
-    "with_check_expression": null,
-    "roles": [
-      0
-    ]
-  },
-  {
-    "schema": "public",
-    "table_name": "couple_events",
-    "policy_name": "events: delete by member",
-    "command": "d",
-    "using_expression": "(EXISTS ( SELECT 1\n   FROM couple_members cm\n  WHERE ((cm.couple_id = couple_events.couple_id) AND (cm.user_id = auth.uid()))))",
-    "with_check_expression": null,
-    "roles": [
-      0
-    ]
-  }
-]
+-- Generated from pg_policies on 2025-10-21 07:03:38.05174+00
+-- ============================================
 
+-- Enable Row Level Security
+alter table public.bucket_items enable row level security;
+alter table public.couple_events enable row level security;
+alter table public.couple_members enable row level security;
+alter table public.couples enable row level security;
+alter table public.love_notes enable row level security;
+alter table public.note_reactions enable row level security;
+alter table public.profiles enable row level security;
+alter table public.push_subscriptions enable row level security;
+alter table storage.objects enable row level security;
 
+-- ======================================================
+-- ================  BUCKET ITEMS  =======================
+-- ======================================================
+drop policy if exists "bucket: delete by member" on public.bucket_items;
+create policy "bucket: delete by member" on public.bucket_items
+for delete to public
+using (
+  exists (
+    select 1 from couple_members cm
+    where cm.couple_id = bucket_items.couple_id
+      and cm.user_id = auth.uid()
+  )
+);
 
-[
-  {
-    "function_definition": "CREATE OR REPLACE FUNCTION public.check_couple_members_limit()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nbegin\r\n  if (select count(*) from couple_members where couple_id = new.couple_id) >= 2 then\r\n    raise exception 'Ce couple est déjà complet (maximum 2 membres)';\r\n  end if;\r\n  return new;\r\nend;\r\n$function$\n"
-  },
-  {
-    "function_definition": "CREATE OR REPLACE FUNCTION public.create_couple(p_started_at date)\n RETURNS TABLE(couple_id uuid, join_code text)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  uid uuid := auth.uid();\r\n  new_cpl uuid;\r\n  code text;\r\nbegin\r\n  if uid is null then\r\n    raise exception 'Non authentifié';\r\n  end if;\r\n\r\n  if exists (select 1 from public.couple_members cm where cm.user_id = uid) then\r\n    raise exception 'Déjà dans un couple';\r\n  end if;\r\n\r\n  code := upper(substr(md5(gen_random_uuid()::text), 1, 6));\r\n\r\n  insert into public.couples(id, join_code, started_at, created_by)\r\n  values (gen_random_uuid(), code, p_started_at, uid)\r\n  returning id into new_cpl;\r\n\r\n  insert into public.couple_members(user_id, couple_id)\r\n  values (uid, new_cpl);\r\n\r\n  return query select new_cpl as couple_id, code as join_code;\r\nend;\r\n$function$\n"
-  },
-  {
-    "function_definition": "CREATE OR REPLACE FUNCTION public.enforce_max_two_members()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\ndeclare cnt int;\r\nbegin\r\n  select count(*) into cnt\r\n  from public.couple_members cm\r\n  where cm.couple_id = NEW.couple_id;\r\n\r\n  if cnt >= 2 then\r\n    raise exception 'Ce couple a déjà 2 membres';\r\n  end if;\r\n\r\n  return NEW;\r\nend;\r\n$function$\n"
-  },
-  {
-    "function_definition": "CREATE OR REPLACE FUNCTION public.ensure_max_two_members()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  member_count int;\r\nbegin\r\n  select count(*) into member_count\r\n  from public.couple_members\r\n  where couple_id = new.couple_id;\r\n\r\n  if member_count >= 2 then\r\n    raise exception 'Ce couple a déjà 2 membres.';\r\n  end if;\r\n\r\n  return new;\r\nend;\r\n$function$\n"
-  },
-  {
-    "function_definition": "CREATE OR REPLACE FUNCTION public.gen_join_code()\n RETURNS text\n LANGUAGE plpgsql\nAS $function$\r\ndeclare\r\n  code text;\r\nbegin\r\n  loop\r\n    -- code court, lisible, 6 chars\r\n    code := upper(substr(md5(gen_random_uuid()::text), 1, 6));\r\n    exit when not exists (select 1 from public.couples where join_code = code);\r\n  end loop;\r\n  return code;\r\nend;\r\n$function$\n"
-  },
-  {
-    "function_definition": "CREATE OR REPLACE FUNCTION public.handle_new_user()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nbegin\r\n  insert into public.profiles (id, created_at, display_name)\r\n  values (new.id, now(), split_part(new.email, '@', 1))\r\n  on conflict (id) do nothing;\r\n  return new;\r\nend;\r\n$function$\n"
-  },
-  {
-    "function_definition": "CREATE OR REPLACE FUNCTION public.is_member_of_couple(_couple_id uuid)\n RETURNS boolean\n LANGUAGE sql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\n  select exists (\r\n    select 1\r\n    from public.couple_members\r\n    where couple_id = _couple_id\r\n      and user_id   = auth.uid()\r\n  );\r\n$function$\n"
-  },
-  {
-    "function_definition": "CREATE OR REPLACE FUNCTION public.join_couple(p_join_code text)\n RETURNS TABLE(couple_id uuid)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  uid uuid := auth.uid();\r\n  target uuid;\r\n  members int;\r\nbegin\r\n  if uid is null then\r\n    raise exception 'Non authentifié';\r\n  end if;\r\n\r\n  if exists (select 1 from public.couple_members cm where cm.user_id = uid) then\r\n    raise exception 'Déjà dans un couple';\r\n  end if;\r\n\r\n  select c.id into target\r\n  from public.couples c\r\n  where c.join_code = upper(p_join_code);\r\n\r\n  if target is null then\r\n    raise exception 'Code invalide';\r\n  end if;\r\n\r\n  select count(*) into members\r\n  from public.couple_members cm\r\n  where cm.couple_id = target;\r\n\r\n  if members >= 2 then\r\n    raise exception 'Ce couple est complet';\r\n  end if;\r\n\r\n  insert into public.couple_members(user_id, couple_id)\r\n  values (uid, target);\r\n\r\n  return query select target as couple_id;\r\nend;\r\n$function$\n"
-  }
-]
+drop policy if exists "bucket: insert by member" on public.bucket_items;
+create policy "bucket: insert by member" on public.bucket_items
+for insert to public
+with check (
+  exists (
+    select 1 from couple_members cm
+    where cm.couple_id = bucket_items.couple_id
+      and cm.user_id = auth.uid()
+  )
+  and author_id = auth.uid()
+);
+
+drop policy if exists "bucket: select in couple" on public.bucket_items;
+create policy "bucket: select in couple" on public.bucket_items
+for select to public
+using (
+  exists (
+    select 1 from couple_members cm
+    where cm.couple_id = bucket_items.couple_id
+      and cm.user_id = auth.uid()
+  )
+);
+
+drop policy if exists "bucket: update by member" on public.bucket_items;
+create policy "bucket: update by member" on public.bucket_items
+for update to public
+using (
+  exists (
+    select 1 from couple_members cm
+    where cm.couple_id = bucket_items.couple_id
+      and cm.user_id = auth.uid()
+  )
+);
+
+-- ======================================================
+-- ================  COUPLE EVENTS  ======================
+-- ======================================================
+drop policy if exists "events: delete by member" on public.couple_events;
+create policy "events: delete by member" on public.couple_events
+for delete to public
+using (
+  exists (
+    select 1 from couple_members cm
+    where cm.couple_id = couple_events.couple_id
+      and cm.user_id = auth.uid()
+  )
+);
+
+drop policy if exists "events: insert by member" on public.couple_events;
+create policy "events: insert by member" on public.couple_events
+for insert to public
+with check (
+  exists (
+    select 1 from couple_members cm
+    where cm.couple_id = couple_events.couple_id
+      and cm.user_id = auth.uid()
+  )
+  and author_id = auth.uid()
+);
+
+drop policy if exists "events: select in couple" on public.couple_events;
+create policy "events: select in couple" on public.couple_events
+for select to public
+using (
+  exists (
+    select 1 from couple_members cm
+    where cm.couple_id = couple_events.couple_id
+      and cm.user_id = auth.uid()
+  )
+);
+
+drop policy if exists "events: update by member" on public.couple_events;
+create policy "events: update by member" on public.couple_events
+for update to public
+using (
+  exists (
+    select 1 from couple_members cm
+    where cm.couple_id = couple_events.couple_id
+      and cm.user_id = auth.uid()
+  )
+);
+
+-- ======================================================
+-- ================  COUPLE MEMBERS  =====================
+-- ======================================================
+drop policy if exists "members: read own membership" on public.couple_members;
+create policy "members: read own membership" on public.couple_members
+for select to public
+using (user_id = auth.uid());
+
+-- ======================================================
+-- ================  COUPLES  ============================
+-- ======================================================
+drop policy if exists "couples: read if member" on public.couples;
+create policy "couples: read if member" on public.couples
+for select to public
+using (
+  exists (
+    select 1 from couple_members cm
+    where cm.couple_id = couples.id
+      and cm.user_id = auth.uid()
+  )
+);
+
+-- ======================================================
+-- ================  LOVE NOTES  =========================
+-- ======================================================
+drop policy if exists "notes: delete by couple member" on public.love_notes;
+create policy "notes: delete by couple member" on public.love_notes
+for delete to public
+using (
+  exists (
+    select 1 from couple_members cm
+    where cm.couple_id = love_notes.couple_id
+      and cm.user_id = auth.uid()
+  )
+);
+
+drop policy if exists "notes: insert by couple member" on public.love_notes;
+create policy "notes: insert by couple member" on public.love_notes
+for insert to public
+with check (
+  exists (
+    select 1 from couple_members cm
+    where cm.couple_id = love_notes.couple_id
+      and cm.user_id = auth.uid()
+  )
+  and author_id = auth.uid()
+);
+
+drop policy if exists "notes: select if same couple" on public.love_notes;
+create policy "notes: select if same couple" on public.love_notes
+for select to public
+using (
+  exists (
+    select 1 from couple_members cm
+    where cm.couple_id = love_notes.couple_id
+      and cm.user_id = auth.uid()
+  )
+);
+
+drop policy if exists "notes: update by couple member" on public.love_notes;
+create policy "notes: update by couple member" on public.love_notes
+for update to public
+using (
+  exists (
+    select 1 from couple_members cm
+    where cm.couple_id = love_notes.couple_id
+      and cm.user_id = auth.uid()
+  )
+)
+with check (
+  exists (
+    select 1 from couple_members cm
+    where cm.couple_id = love_notes.couple_id
+      and cm.user_id = auth.uid()
+  )
+);
+
+-- ======================================================
+-- ================  NOTE REACTIONS  =====================
+-- ======================================================
+drop policy if exists "reactions: delete own in couple" on public.note_reactions;
+create policy "reactions: delete own in couple" on public.note_reactions
+for delete to public
+using (
+  user_id = auth.uid()
+  and exists (
+    select 1 from love_notes ln
+    join couple_members cm on cm.couple_id = ln.couple_id
+    where ln.id = note_reactions.note_id
+      and cm.user_id = auth.uid()
+  )
+);
+
+drop policy if exists "reactions: insert own in couple" on public.note_reactions;
+create policy "reactions: insert own in couple" on public.note_reactions
+for insert to public
+with check (
+  user_id = auth.uid()
+  and exists (
+    select 1 from love_notes ln
+    join couple_members cm on cm.couple_id = ln.couple_id
+    where ln.id = note_reactions.note_id
+      and cm.user_id = auth.uid()
+  )
+);
+
+drop policy if exists "reactions: select in couple" on public.note_reactions;
+create policy "reactions: select in couple" on public.note_reactions
+for select to public
+using (
+  exists (
+    select 1 from love_notes ln
+    join couple_members cm on cm.couple_id = ln.couple_id
+    where ln.id = note_reactions.note_id
+      and cm.user_id = auth.uid()
+  )
+);
+
+-- ======================================================
+-- ================  PROFILES  ===========================
+-- ======================================================
+drop policy if exists "profiles: read self" on public.profiles;
+create policy "profiles: read self" on public.profiles
+for select to public
+using (id = auth.uid());
+
+drop policy if exists "profiles: select own" on public.profiles;
+create policy "profiles: select own" on public.profiles
+for select to public
+using (id = auth.uid());
+
+drop policy if exists "profiles: select same couple" on public.profiles;
+create policy "profiles: select same couple" on public.profiles
+for select to public
+using (
+  exists (
+    select 1 from couple_members cm1
+    join couple_members cm2 on cm1.couple_id = cm2.couple_id
+    where cm1.user_id = auth.uid()
+      and cm2.user_id = profiles.id
+  )
+);
+
+drop policy if exists "profiles: update own" on public.profiles;
+create policy "profiles: update own" on public.profiles
+for update to public
+using (id = auth.uid());
+
+drop policy if exists "profiles: update self" on public.profiles;
+create policy "profiles: update self" on public.profiles
+for update to public
+using (id = auth.uid());
+
+drop policy if exists "profiles: upsert self" on public.profiles;
+create policy "profiles: upsert self" on public.profiles
+for insert to public
+with check (id = auth.uid());
+
+-- ======================================================
+-- ================  PUSH SUBSCRIPTIONS  =================
+-- ======================================================
+drop policy if exists "push: delete own" on public.push_subscriptions;
+create policy "push: delete own" on public.push_subscriptions
+for delete to public
+using (user_id = auth.uid());
+
+drop policy if exists "push: insert own" on public.push_subscriptions;
+create policy "push: insert own" on public.push_subscriptions
+for insert to public
+with check (user_id = auth.uid());
+
+drop policy if exists "push: select in same couple" on public.push_subscriptions;
+create policy "push: select in same couple" on public.push_subscriptions
+for select to public
+using (
+  exists (
+    select 1 from couple_members cm1
+    join couple_members cm2 on cm1.couple_id = cm2.couple_id
+    where cm1.user_id = auth.uid()
+      and cm2.user_id = push_subscriptions.user_id
+      and cm1.user_id <> cm2.user_id
+  )
+);
+
+drop policy if exists "push: select own" on public.push_subscriptions;
+create policy "push: select own" on public.push_subscriptions
+for select to public
+using (user_id = auth.uid());
+
+-- ======================================================
+-- ================  STORAGE / AVATARS  =================
+-- ======================================================
+drop policy if exists "avatars: public read" on storage.objects;
+create policy "avatars: public read" on storage.objects
+for select to public
+using (bucket_id = 'avatars');
+
+drop policy if exists "avatars: user can insert own" on storage.objects;
+create policy "avatars: user can insert own" on storage.objects
+for insert to public
+with check (
+  bucket_id = 'avatars'
+  and auth.role() = 'authenticated'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+drop policy if exists "avatars: user delete own" on storage.objects;
+create policy "avatars: user delete own" on storage.objects
+for delete to public
+using (
+  bucket_id = 'avatars'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+drop policy if exists "avatars: user update own" on storage.objects;
+create policy "avatars: user update own" on storage.objects
+for update to public
+using (
+  bucket_id = 'avatars'
+  and (storage.foldername(name))[1] = auth.uid()::text
+);

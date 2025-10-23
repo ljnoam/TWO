@@ -6,10 +6,17 @@ html, body {
   height: 100%;
   margin: 0;
   padding: 0;
-  background-color: #fff;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   scroll-behavior: smooth;
 }
+
+/* Ensure the OS shows the correct backdrop color behind fixed elements and overscroll */
+html { background-color: #ffffff; }
+@media (prefers-color-scheme: dark) {
+  html { background-color: #0a0a0a; }
+}
+/* Let Tailwind classes control the body background */
+body { background-color: transparent; }
 
 /* Scrollbars masquées par défaut, sauf besoin explicite */
 .no-scrollbar {
@@ -30,6 +37,14 @@ html, body {
   --nav-h: 64px;
   --gap: 16px;
   --radius: 1rem;
+  --viewport-height: 100vh;
+  color-scheme: light dark;
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --viewport-height: 100dvh;
+  }
 }
 
 /* Ombres et arrondis uniformes */

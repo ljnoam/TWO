@@ -4,15 +4,19 @@ import InstallBanner from '@/components/pwa/InstallBanner'
 import { cookies, headers } from 'next/headers'
 import { createServerClient } from '@supabase/ssr'
 
-// ✅ Nouveau : export viewport pour themeColor
+// Viewport: ensure PWA safe-area and system UI fit
 export const viewport = {
-  themeColor: '#ff3b81',
+  viewportFit: 'cover',
 }
 
 export const metadata = {
   title: 'Nous',
   description: 'App de couple ❤️',
   manifest: '/manifest.json',
+  themeColor: [
+    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' },
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+  ],
   icons: {
     icon: [
       { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
@@ -54,7 +58,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="fr" suppressHydrationWarning>
       <body
         className={`
-          min-h-[100svh]
+          min-h-screen min-h-[var(--viewport-height)]
           bg-white text-neutral-900
           dark:bg-neutral-950 dark:text-neutral-50
           font-sans antialiased flex flex-col overflow-hidden

@@ -1,15 +1,17 @@
+import type { CSSProperties, ReactNode } from 'react';
 import MainNav from '@/components/nav/MainNav';
 
-export default function FeaturesLayout({ children }: { children: React.ReactNode }) {
+const NAV_HEIGHT = '96px';
+
+export default function FeaturesLayout({ children }: { children: ReactNode }) {
   return (
-    // fond lisible en light ET dark, et texte adapté
-    <div className="min-h-[100svh] bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-50">
-      {/* contenu, on évite que la nav recouvre le bas */}
-      <div className="px-3 sm:px-4 pb-[84px] sm:pb-[96px] max-w-3xl mx-auto">
+    <div
+      className="min-h-screen min-h-[var(--viewport-height)] bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-50"
+      style={{ '--nav-h': NAV_HEIGHT } as CSSProperties}
+    >
+      <div className="px-3 sm:px-4 pb-[calc(env(safe-area-inset-bottom)+var(--nav-h)+16px)] max-w-3xl mx-auto">
         {children}
       </div>
-
-      {/* bottom nav flottante */}
       <MainNav />
     </div>
   );

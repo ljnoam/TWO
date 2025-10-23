@@ -33,16 +33,17 @@ export default function MainNav() {
   const pathname = usePathname();
 
   return (
-    <div className="pointer-events-none fixed left-0 right-0 bottom-[env(safe-area-inset-bottom)] z-50 flex justify-center px-3 sm:px-6">
+    <div className="pointer-events-none fixed left-0 right-0 bottom-0 z-50 flex justify-center px-3 sm:px-6">
       <nav
         className="
           pointer-events-auto
-          mx-auto mb-3 w-full max-w-3xl
+          mx-auto w-full max-w-3xl
           rounded-2xl sm:rounded-3xl
           border border-black/10 dark:border-white/10
           bg-white/75 dark:bg-neutral-900/70
           backdrop-blur-md shadow-lg
           supports-[backdrop-filter]:backdrop-blur
+          mb-[calc(env(safe-area-inset-bottom)+8px)]
         "
       >
         <ul className="flex items-center justify-between px-2 sm:px-3">

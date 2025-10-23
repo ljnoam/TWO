@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import DaysSinceCouple from '@/components/counter/DaysSinceCouple';
 import ActivityWidget from '@/components/home/ActivityWidget';
+import { Send, ListChecks, CalendarPlus, Heart } from 'lucide-react';
 
 export default function HomePage() {
   const router = useRouter();
@@ -34,22 +35,47 @@ export default function HomePage() {
   }, [router]);
 
   return (
-    <main className="max-w-3xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
+    <main
+      className="w-full max-w-3xl mx-auto min-h-screen min-h-[calc(var(--viewport-height)-var(--nav-h))] max-h-[calc(var(--viewport-height)-var(--nav-h))] px-3 sm:px-4 pt-[calc(env(safe-area-inset-top)+var(--gap))] pb-[calc(env(safe-area-inset-bottom)+var(--gap))] flex flex-col overflow-y-auto no-scrollbar space-y-5 sm:space-y-6"
+    >
+      {/* Hero section */}
+      <section className="space-y-4">
+        <DaysSinceCouple />
+        <div className="rounded-3xl border border-black/10 dark:border-white/10 bg-white/70 dark:bg-neutral-900/60 backdrop-blur-md shadow-xl p-5 sm:p-6">
+          <div className="flex items-center gap-2">
+            <Heart className="h-5 w-5 text-pink-600 dark:text-pink-400" aria-hidden />
+            <h1 className="text-2xl font-bold tracking-tight" aria-live="polite">
+              {`Bienvenue`} {firstName ? `❤️ ${firstName}` : '❤️'}
+            </h1>
+          </div>
+          <p className="opacity-70 text-sm mt-2">Heureux de vous revoir ici.</p>
+        </div>
+      </section>
       {/* Counter bento */}
-      <div>
+      <div className="hidden">
         <DaysSinceCouple />
       </div>
 
       {/* Heading + Warm welcome */}
-      <header>
+      <header className="hidden">
         <h1 className="text-2xl font-bold tracking-tight" aria-live="polite">
           Bienvenue ❤️ {firstName || 'toi'}
         </h1>
         <p className="opacity-70 text-sm mt-1">Heureux de vous revoir ici.</p>
       </header>
 
-      {/* CTAs */}
+      {/* Quick actions */}
       <section aria-label="Actions rapides" className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <HomeCTA href="/notes" label="Écrire un mot doux" ariaLabel="Aller écrire un mot doux" icon={<Send className="h-4 w-4" />} />
+        <HomeCTA href="/bucket" label="Ajouter à la bucket" ariaLabel="Ajouter un élément à la bucket list" icon={<ListChecks className="h-4 w-4" />} />
+        <HomeCTA href="/calendar" label="Créer un événement" ariaLabel="Créer un événement" icon={<CalendarPlus className="h-4 w-4" />} />
+      </section>
+
+      {/* CTAs */}
+      <div className="px-1">
+        <h2 className="text-sm font-semibold opacity-70">Aper�?�u rapide</h2>
+      </div>
+      <section aria-label="Actions rapides" className="hidden grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
         <HomeCTA href="/notes" label="Écrire un mot doux" ariaLabel="Aller écrire un mot doux" />
         <HomeCTA href="/bucket" label="Ajouter à la bucket" ariaLabel="Ajouter un élément à la bucket list" />
         <HomeCTA href="/calendar" label="Créer un évènement" ariaLabel="Créer un évènement" />
@@ -61,15 +87,17 @@ export default function HomePage() {
   );
 }
 
-function HomeCTA({ href, label, ariaLabel }: { href: string; label: string; ariaLabel: string }) {
+function HomeCTA({ href, label, ariaLabel, icon }: { href: string; label: string; ariaLabel: string; icon?: React.ReactNode }) {
   return (
     <Link
       href={href}
       aria-label={ariaLabel}
-      className="block text-center w-full rounded-2xl border border-black/10 dark:border-white/10 bg-white/80 dark:bg-neutral-900/70 backdrop-blur-md px-4 py-4 font-medium shadow hover:opacity-95 active:scale-[0.99] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500/40"
+      className="group block w-full rounded-2xl border border-black/10 dark:border-white/10 bg-white/80 dark:bg-neutral-900/70 backdrop-blur-md px-4 py-4 font-medium shadow transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500/40 hover:shadow-md active:scale-[0.99]"
     >
-      {label}
+      <span className="flex items-center justify-center gap-2">
+        {icon && <span className="shrink-0 text-pink-600 dark:text-pink-400 group-hover:scale-105 transition-transform">{icon}</span>}
+        <span>{label}</span>
+      </span>
     </Link>
   );
 }
-

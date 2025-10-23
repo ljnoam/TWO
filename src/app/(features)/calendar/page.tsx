@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
-import { CalendarPlus, Trash2, Clock3 } from "lucide-react";
+import { CalendarPlus, Trash2, Clock3, ChevronUp, ChevronDown } from "lucide-react";
 import EventCard, { type CalendarEvent } from "@/components/calendar/EventCard";
 import EventForm from "@/components/calendar/EventForm";
+
+export const dynamic = "force-dynamic";
 
 type EventRow = {
   id: string;
@@ -33,6 +35,7 @@ export default function CalendarPage() {
   const [end, setEnd] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
   const [allDay, setAllDay] = useState<boolean>(false);
+  const [formCollapsed, setFormCollapsed] = useState<boolean>(false);
   const params = useSearchParams();
 
   useEffect(() => {
@@ -206,22 +209,23 @@ export default function CalendarPage() {
     return out;
   }, [items]);
 
+  const containerStyle: CSSProperties = {
+    "--gap": "16px",
+    minHeight: "calc(var(--viewport-height) - var(--nav-h))",
+  };
+
   return (
     <main
-      style={
-        {
-          ['--nav-h' as any]: '64px',
-          ['--gap' as any]: '16px',
-        } as React.CSSProperties
-      }
+      style={containerStyle}
       className={`
         w-full max-w-3xl mx-auto
-        h-[100svh]
-        overflow-hidden
+        min-h-screen
+        min-h-[calc(var(--viewport-height)-var(--nav-h))]
+        max-h-[calc(var(--viewport-height)-var(--nav-h))]
         px-3 sm:px-4
         pt-[calc(env(safe-area-inset-top)+var(--gap))]
-        pb-[calc(env(safe-area-inset-bottom)+96px)]
-        flex flex-col
+        pb-[calc(env(safe-area-inset-bottom)+var(--gap))]
+        flex flex-col overflow-y-auto no-scrollbar
       `}
     >
       {/* === FORMULAIRE STICKY TOP === */}
@@ -231,11 +235,21 @@ export default function CalendarPage() {
           z-10
         `}
       >
-        <div className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/80 dark:bg-neutral-900/70 backdrop-blur-md shadow-lg p-4 sm:p-5">
-          <div className="flex items-center gap-2 mb-3">
+        <div className={`relative rounded-2xl border border-black/10 dark:border-white/10 bg-white/80 dark:bg-neutral-900/70 backdrop-blur-md shadow-lg p-4 sm:p-5 ${formCollapsed ? 'py-3' : ''}`}>
+          <button
+            type="button"
+            onClick={() => setFormCollapsed(v => !v)}
+            aria-label={formCollapsed ? 'Réouvrir le formulaire' : 'Réduire le formulaire'}
+            className="absolute top-3 right-3 rounded-lg p-1.5 hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition"
+          >
+            {formCollapsed ? <ChevronDown className="h-5 w-5" /> : <ChevronUp className="h-5 w-5" />}
+          </button>
+          <div className="flex items-center gap-2 mb-3 pr-9">
             <CalendarPlus className="h-5 w-5" />
             <h1 className="text-xl font-semibold">Ajouter un événement</h1>
           </div>
+          {!formCollapsed && (
+            <>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input
               value={title}
@@ -277,15 +291,15 @@ export default function CalendarPage() {
               Ajouter
             </button>
           </div>
+            </>
+          )}
         </div>
       </section>
 
       {/* === LISTE (scroll dans une box) === */}
       <section
         className={`
-          flex-1 min-h-0 overflow-y-auto no-scrollbar overscroll-contain
-          mt-8
-          pb-[calc(env(safe-area-inset-bottom)+96px)]
+          flex-1 mt-8 pb-8
         `}
       >
         <div className="space-y-4">
@@ -362,16 +376,7 @@ export default function CalendarPage() {
         </div>
       </section>
 
-      {/* util scrollbar */}
-      <style jsx global>{`
-        .no-scrollbar {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-        .no-scrollbar::-webkit-scrollbar {
-          display: none;
-        }
-      `}</style>
+      {/* util scrollbar - already defined globally in globals.css */}
       {editing && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4">
           <EventForm

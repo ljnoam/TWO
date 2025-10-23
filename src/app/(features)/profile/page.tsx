@@ -57,19 +57,23 @@ export default function ProfilePage() {
       }
 
       const { data: c } = await supabase.from('couples').select('id, started_at, join_code').eq('id', cm.couple_id).maybeSingle()
-      const { data: p } = await supabase
+      // Fetch partner id first, then their profile to avoid PostgREST nested join across schemas
+      const { data: partnerRow } = await supabase
         .from('couple_members')
-        .select('user_id, profiles(first_name, display_name, avatar_url)')
+        .select('user_id')
         .eq('couple_id', cm.couple_id)
         .neq('user_id', user.id)
+        .maybeSingle()
 
-      const partnerProf = p?.[0]?.profiles
-        ? {
-            first_name: p[0].profiles.first_name,
-            display_name: p[0].profiles.display_name,
-            avatar_url: p[0].profiles.avatar_url,
-          }
-        : null
+      let partnerProf: { first_name?: string | null; display_name?: string | null; avatar_url?: string | null } | null = null
+      if (partnerRow?.user_id) {
+        const { data: prof2 } = await supabase
+          .from('profiles')
+          .select('first_name, display_name, avatar_url')
+          .eq('id', partnerRow.user_id)
+          .maybeSingle()
+        partnerProf = prof2 ?? null
+      }
 
       setPartner(partnerProf)
 
@@ -190,7 +194,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="max-w-3xl mx-auto px-4 pt-8 pb-[calc(var(--nav-h)+24px)] space-y-6 min-h-[100svh] max-h-[100svh] overflow-y-auto no-scrollbar">
+    <main className="max-w-3xl mx-auto px-4 pt-8 pb-[calc(var(--nav-h)+24px)] space-y-6 min-h-screen min-h-[var(--viewport-height)] max-h-[var(--viewport-height)] overflow-y-auto no-scrollbar">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Salut {profile?.first_name || 'toi'} 👋</h1>

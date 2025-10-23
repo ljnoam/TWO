@@ -1,289 +1,317 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { setAppBadge } from '@/lib/badging';
-import NoteCard, { type Note, NoteStack } from '@/components/notes/NoteCard';
-import { Send } from 'lucide-react';
+import { relativeTimeFromNow } from '@/lib/utils';
+import NotesCarousel from '@/components/notes/NotesCarousel';
+import { Send, Heart, Inbox, Mail } from 'lucide-react';
 
-type Reaction = { id: string; note_id: string; user_id: string; emoji: '❤️'|'😆'|'🥲'; created_at: string };
+// type Note local
+export type Note = { id: string; content: string; created_at: string; author_id: string };
+type Reaction = { id: string; note_id: string; user_id: string; emoji: string; created_at: string };
+
+// Utility function
+function truncate(value: string, max: number) {
+  if (value.length <= max) return value;
+  return `${value.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
+}
 
 export default function NotesPage() {
   const router = useRouter();
   const [me, setMe] = useState<string | null>(null);
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [tab, setTab] = useState<'received'|'sent'>('received');
   const [reactionsByNote, setReactionsByNote] = useState<Record<string, Reaction[]>>({});
-  const [input, setInput] = useState('');
-  const [tab, setTab] = useState<'received' | 'sent'>('received');
+  const [loading, setLoading] = useState(true);
+  const [newNote, setNewNote] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  // Charge user + couple
-  useEffect(() => {
-    (async () => {
-      const { data: s } = await supabase.auth.getSession();
-      if (!s.session) {
-        router.replace('/register');
-        return;
-      }
-      setMe(s.session.user.id);
+  const received = useMemo(() => notes.filter(n => n.author_id !== me), [notes, me]);
+  const sent = useMemo(() => notes.filter(n => n.author_id === me), [notes, me]);
+  const activeList = tab === 'received' ? received : sent;
 
-      const { data: st } = await supabase
-        .from('my_couple_status')
-        .select('*')
-        .eq('user_id', s.session.user.id)
-        .maybeSingle();
+  const reactionCountsFor = (noteId: string) => {
+    const arr = reactionsByNote[noteId] ?? [];
+    return {
+      '❤️': arr.filter(r => r.emoji === '❤️').length,
+      '😆': arr.filter(r => r.emoji === '😆').length,
+      '🥲': arr.filter(r => r.emoji === '🥲').length,
+    };
+  };
 
-      if (!st) {
-        router.replace('/onboarding');
-        return;
-      }
-      if (st.members_count < 2) {
-        router.replace('/waiting');
-        return;
-      }
+  const myReactionFor = (noteId: string) => {
+    const arr = reactionsByNote[noteId] ?? [];
+    const mine = arr.find(r => r.user_id === me);
+    return mine?.emoji ?? null;
+  };
 
-      setCoupleId(st.couple_id);
-
-      let rows: any[] | null = null;
-      if (!navigator.onLine) {
-        try {
-          const cached = localStorage.getItem(`cache_notes_${st.couple_id}`);
-          if (cached) rows = JSON.parse(cached);
-        } catch {}
-      }
-
-      if (!rows) {
-        const resp = await supabase
-          .from('love_notes')
-          .select('id, content, created_at, author_id, couple_id')
-          .eq('couple_id', st.couple_id)
-          .order('created_at', { ascending: false });
-        rows = resp.data ?? [];
-        try { localStorage.setItem(`cache_notes_${st.couple_id}`, JSON.stringify(rows)); } catch {}
-      }
-
-      const list = rows ?? [];
-      setNotes(list);
-
-      const ids = list.map((n) => n.id);
-      if (ids.length > 0) {
-        const { data: reacts } = await supabase
-          .from('note_reactions')
-          .select('id, note_id, user_id, emoji, created_at')
-          .in('note_id', ids);
-        const by: Record<string, Reaction[]> = {};
-        (reacts ?? []).forEach((r) => { (by[r.note_id] ||= []).push(r as Reaction); });
-        setReactionsByNote(by);
+  async function toggleReaction(noteId: string, emoji: '❤️'|'😆'|'🥲') {
+    const existing = (reactionsByNote[noteId] ?? []).find(r => r.user_id === me);
+    if (!existing) {
+      const { error } = await supabase.from('note_reactions').insert({ note_id: noteId, emoji });
+      if (error) console.error('[insert reaction] error:', error);
+    } else {
+      if (existing.emoji === emoji) {
+        const { error } = await supabase.from('note_reactions').delete().eq('id', existing.id);
+        if (error) console.error('[delete reaction] error:', error);
       } else {
-        setReactionsByNote({});
-      }
-    })();
-  }, [router]);
-
-  // Realtime for notes + reactions
-  useEffect(() => {
-    const channel = supabase
-      .channel('love_notes_all')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'love_notes' }, (payload) => {
-        const n = payload.new as Note & { couple_id: string };
-        if (n.couple_id !== coupleId) return;
-        setNotes((prev) => (prev.find((x) => x.id === n.id) ? prev : [n, ...prev]));
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'love_notes' }, (payload) => {
-        const d = payload.old as Note & { couple_id: string };
-        if (d.couple_id !== coupleId) return;
-        setNotes((prev) => prev.filter((x) => x.id !== d.id));
-        setReactionsByNote((prev) => { const next = { ...prev }; delete next[d.id]; return next; });
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'note_reactions' }, (payload) => {
-        const r = payload.new as Reaction;
-        setReactionsByNote((prev) => {
-          const has = notes.find((n) => n.id === r.note_id);
-          if (!has) return prev;
-          const arr = (prev[r.note_id] ?? []).filter((x) => x.user_id !== r.user_id);
-          return { ...prev, [r.note_id]: [...arr, r] };
-        });
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'note_reactions' }, (payload) => {
-        const r = payload.new as Reaction;
-        setReactionsByNote((prev) => {
-          const has = notes.find((n) => n.id === r.note_id);
-          if (!has) return prev;
-          const arr = (prev[r.note_id] ?? []).filter((x) => x.user_id !== r.user_id);
-          return { ...prev, [r.note_id]: [...arr, r] };
-        });
-      })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'note_reactions' }, (payload) => {
-        const r = payload.old as Reaction;
-        setReactionsByNote((prev) => {
-          const arr = prev[r.note_id];
-          if (!arr) return prev;
-          return { ...prev, [r.note_id]: arr.filter((x) => x.id !== r.id) };
-        });
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [coupleId, notes]);
-
-  const received = useMemo(() => notes.filter((n) => n.author_id !== me), [notes, me]);
-  const sent = useMemo(() => notes.filter((n) => n.author_id === me), [notes, me]);
-
-  // Update app badge (Android) with count of received notes
-  useEffect(() => {
-    try { setAppBadge(received.length); } catch {}
-  }, [received.length]);
-
-  // Visibility resync
-  useEffect(() => {
-    async function refetch() {
-      if (!coupleId || document.hidden) return;
-      const { data: list } = await supabase
-        .from('love_notes')
-        .select('id, content, created_at, author_id, couple_id')
-        .eq('couple_id', coupleId)
-        .order('created_at', { ascending: false });
-      setNotes(list ?? []);
-      const ids = (list ?? []).map((n) => n.id);
-      if (ids.length > 0) {
-        const { data: reacts } = await supabase
-          .from('note_reactions')
-          .select('id, note_id, user_id, emoji, created_at')
-          .in('note_id', ids);
-        const by: Record<string, Reaction[]> = {};
-        (reacts ?? []).forEach((r) => { (by[r.note_id] ||= []).push(r as Reaction); });
-        setReactionsByNote(by);
-      } else {
-        setReactionsByNote({});
+        const { error } = await supabase.from('note_reactions').update({ emoji }).eq('id', existing.id);
+        if (error) console.error('[update reaction] error:', error);
       }
     }
-    document.addEventListener('visibilitychange', refetch);
-    return () => document.removeEventListener('visibilitychange', refetch);
-  }, [coupleId]);
+  }
 
-  async function sendNote() {
-    const content = input.trim();
-    if (!content || !me || !coupleId) return;
-    setInput('');
-    if (!navigator.onLine) {
-      const { enqueueOutbox } = await import('@/lib/outbox');
-      await enqueueOutbox('love_note', { couple_id: coupleId, author_id: me, content });
-      console.log('[offline] note queued');
-      // Optional: optimistic UI can be added here if desired
-      return;
+  async function getCoupleIdForUser(uid: string): Promise<string | null> {
+    const { data, error } = await supabase
+      .from('couple_members')
+      .select('couple_id')
+      .eq('user_id', uid)
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error('[couple_members] error:', error);
+      return null;
     }
-    const { error } = await supabase.from('love_notes').insert({ couple_id: coupleId, author_id: me, content });
-    if (error) { setInput(content); alert(error.message); return; }
-    try {
-      await fetch('/api/push/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notePreview: content }) });
-    } catch (err) { console.warn('Erreur lors de lenvoi de la notif:', err); }
+    return data?.couple_id ?? null;
   }
 
   async function deleteNote(id: string) {
-    setNotes((prev) => prev.filter((n) => n.id !== id));
     const { error } = await supabase.from('love_notes').delete().eq('id', id);
-    if (error) alert(error.message);
+    if (error) console.error('[delete note] error:', error);
   }
 
-  function reactionCountsFor(noteId: string): Record<'❤️'|'😆'|'🥲', number> {
-    const arr = reactionsByNote[noteId] ?? [];
-    return {
-      '❤️': arr.filter((r) => r.emoji === '❤️').length,
-      '😆': arr.filter((r) => r.emoji === '😆').length,
-      '🥲': arr.filter((r) => r.emoji === '🥲').length,
-    };
-  }
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      const { data: s } = await supabase.auth.getSession();
+      const uid = s.session?.user.id ?? null;
+      setMe(uid);
 
-  function myReactionFor(noteId: string): '❤️'|'😆'|'🥲'|null {
-    const arr = reactionsByNote[noteId] ?? [];
-    const r = arr.find((x) => x.user_id === me);
-    return (r?.emoji as any) || null;
-  }
+      if (!uid) {
+        router.push('/login');
+        return;
+      }
 
-  async function toggleReaction(noteId: string, emoji: '❤️'|'😆'|'🥲') {
-    if (!me) return;
-    const current = myReactionFor(noteId);
-    if (current === emoji) {
-      setReactionsByNote((prev) => ({ ...prev, [noteId]: (prev[noteId] ?? []).filter((r) => r.user_id !== me) }));
-      const { error } = await supabase.from('note_reactions').delete().match({ note_id: noteId, user_id: me });
-      if (error) console.warn('Failed to remove reaction', error.message);
-    } else {
-      setReactionsByNote((prev) => {
-        const others = (prev[noteId] ?? []).filter((r) => r.user_id !== me);
-        const optimistic: Reaction = { id: `tmp-${noteId}-${me}`, note_id: noteId, user_id: me, emoji, created_at: new Date().toISOString() };
-        return { ...prev, [noteId]: [...others, optimistic] };
+      const cid = await getCoupleIdForUser(uid);
+      if (!cid) {
+        router.push('/onboarding');
+        return;
+      }
+      setCoupleId(cid);
+
+      const { data: fetchedNotes, error: notesErr } = await supabase
+        .from('love_notes')
+        .select('*')
+        .eq('couple_id', cid)
+        .order('created_at', { ascending: false });
+
+      if (notesErr) console.error('[love_notes] error:', notesErr);
+      setNotes((fetchedNotes as Note[]) ?? []);
+
+      const noteIds = (fetchedNotes ?? []).map(n => n.id);
+      const { data: fetchedReactions, error: reactionsErr } = await supabase
+        .from('note_reactions')
+        .select('*')
+        .in('note_id', noteIds.length ? noteIds : ['00000000-0000-0000-0000-000000000000']);
+
+      if (reactionsErr) console.error('[note_reactions] error:', reactionsErr);
+
+      const grouped: Record<string, Reaction[]> = {};
+      (fetchedReactions ?? []).forEach(r => {
+        grouped[r.note_id] = grouped[r.note_id] ? [...grouped[r.note_id], r] : [r];
       });
-      const { error } = await supabase.from('note_reactions').upsert({ note_id: noteId, user_id: me, emoji }, { onConflict: 'note_id,user_id' });
-      if (error) console.warn('Failed to upsert reaction', error.message);
-    }
+      setReactionsByNote(grouped);
+
+      try {
+        setAppBadge((fetchedNotes ?? []).filter(n => n.author_id !== uid).length);
+      } catch (e) {
+        console.warn('[setAppBadge] not supported:', e);
+      }
+
+      setLoading(false);
+
+      const channel = supabase
+        .channel('notes_live')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'love_notes', filter: `couple_id=eq.${cid}` }, (payload) => {
+          const n = payload.new as Note & { couple_id: string };
+          setNotes(prev => (prev.find(x => x.id === n.id) ? prev : [n, ...prev]));
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'love_notes', filter: `couple_id=eq.${cid}` }, (payload) => {
+          const d = payload.old as Note & { couple_id: string };
+          setNotes(prev => prev.filter(x => x.id !== d.id));
+          setReactionsByNote(prev => { const next = { ...prev }; delete next[d.id]; return next; });
+        })
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'note_reactions' }, (payload) => {
+          const r = payload.new as Reaction;
+          setReactionsByNote(prev => {
+            const has = notes.find(n => n.id === r.note_id);
+            if (!has) return prev;
+            const arr = (prev[r.note_id] ?? []).filter(x => x.user_id !== r.user_id);
+            return { ...prev, [r.note_id]: [...arr, r] };
+          });
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'note_reactions' }, (payload) => {
+          const r = payload.old as Reaction;
+          setReactionsByNote(prev => {
+            const arr = (prev[r.note_id] ?? []).filter(x => x.id !== r.id);
+            return { ...prev, [r.note_id]: arr };
+          });
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    })();
+  }, [router]);
+
+  if (loading) {
+    return (
+      <main className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-neutral-950">
+        <div className="w-8 h-8 border-2 border-neutral-300 dark:border-neutral-700 border-t-neutral-900 dark:border-t-neutral-100 rounded-full animate-spin" />
+      </main>
+    );
   }
 
   return (
-    <main
-      style={{ ['--composer-h' as any]: 'clamp(96px, 22svh, 200px)', ['--app-nav-h' as any]: '64px', ['--gap' as any]: '24px' } as React.CSSProperties}
-      className={`w-full max-w-none mx-auto min-h-[100svh] px-0 overflow-hidden pb-[calc(env(safe-area-inset-bottom)+var(--app-nav-h)+var(--gap))]`}
-    >
-      {/* TABS */}
-      <div className="px-3 sm:px-4 pt-3">
-        <div role="tablist" aria-label="Onglets notes" className="inline-flex rounded-full border border-black/10 dark:border-white/10 p-1 bg-white/70 dark:bg-neutral-900/60 shadow">
-          <button role="tab" aria-selected={tab==='received'} onClick={() => setTab('received')} className={`px-3 py-1.5 rounded-full text-sm font-medium ${tab==='received' ? 'bg-black text-white dark:bg-white dark:text-black' : 'hover:bg-black/5 dark:hover:bg-white/10'}`}>Reçues</button>
-          <button role="tab" aria-selected={tab==='sent'} onClick={() => setTab('sent')} className={`px-3 py-1.5 rounded-full text-sm font-medium ${tab==='sent' ? 'bg-black text-white dark:bg-white dark:text-black' : 'hover:bg-black/5 dark:hover:bg-white/10'}`}>Envoyées</button>
+    <main className="min-h-screen bg-neutral-50 dark:bg-neutral-950 flex flex-col pb-[72px]">
+      {/* HEADER FLOATING */}
+      <div className="px-4 pt-4 pb-4">
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-lg p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center shadow-lg">
+              <Heart className="w-5 h-5 text-white" fill="white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-semibold text-neutral-900 dark:text-white">Mots doux</h1>
+              <p className="text-sm text-neutral-500 dark:text-neutral-400">Vos messages tendres</p>
+            </div>
+          </div>
+
+          {/* TABS */}
+          <div className="flex gap-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl p-1">
+            <button
+              onClick={() => setTab('received')}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                tab === 'received'
+                  ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-sm'
+                  : 'text-neutral-600 dark:text-neutral-400'
+              }`}
+            >
+              <Inbox className="w-4 h-4" />
+              Reçues
+              {received.length > 0 && (
+                <span className="ml-1 px-2 py-0.5 bg-pink-100 dark:bg-pink-900/30 text-pink-600 dark:text-pink-400 text-xs font-semibold rounded-full">
+                  {received.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setTab('sent')}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                tab === 'sent'
+                  ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-sm'
+                  : 'text-neutral-600 dark:text-neutral-400'
+              }`}
+            >
+              <Mail className="w-4 h-4" />
+              Envoyées
+              {sent.length > 0 && (
+                <span className="ml-1 px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-semibold rounded-full">
+                  {sent.length}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* SCROLL NOTES */}
-      <section className={`w-full h-[calc(100svh-var(--composer-h)-var(--app-nav-h)-var(--gap)-env(safe-area-inset-bottom))]`}>
-        {(tab === 'received' ? received : sent).length === 0 ? (
-          <div className="mx-4 rounded-3xl border border-black/10 dark:border-white/10 bg-white/70 dark:bg-neutral-900/60 backdrop-blur-md shadow-lg p-6 text-center">
-            <p className="text-sm opacity-70">{tab==='received' ? "Aucun mot doux reçu pour l'instant" : "Vous n'avez pas encore envoyé de mot doux"}</p>
+      {/* CAROUSEL */}
+      <div className="flex items-center justify-center px-4 py-2 min-h-0">
+        {activeList.length === 0 ? (
+          <div className="text-center">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center">
+              {tab === 'received' ? (
+                <Inbox className="w-8 h-8 text-neutral-400 dark:text-neutral-600" />
+              ) : (
+                <Mail className="w-8 h-8 text-neutral-400 dark:text-neutral-600" />
+              )}
+            </div>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+              {tab === 'received' 
+                ? 'Aucun mot doux reçu pour l\'instant.' 
+                : 'Vous n\'avez pas encore envoyé de mot doux.'
+              }
+            </p>
           </div>
         ) : (
-          <NoteStack className={`h-full w-full overflow-y-auto overflow-x-hidden no-scrollbar rounded-none`}>
-            {(tab==='received' ? received : sent).map((note) => (
-              <NoteCard
-                key={note.id}
-                note={note}
-                onDelete={deleteNote}
-                sent={tab==='sent'}
-                reactionCounts={reactionCountsFor(note.id)}
-                myReaction={myReactionFor(note.id)}
-                onToggleReaction={(emoji) => toggleReaction(note.id, emoji)}
-              />
-            ))}
-          </NoteStack>
+          <NotesCarousel notes={activeList} />
         )}
-      </section>
+      </div>
 
-      {/* COMPOSER sticky au-dessus de la navbar */}
-      <section className={`fixed left-0 right-0 bottom-[calc(env(safe-area-inset-bottom)+var(--app-nav-h)+24px)] px-3 sm:px-4`} style={{ height: 'var(--composer-h)' }}>
-        <div className="h-full rounded-2xl border border-black/10 dark:border-white/10 bg-white/75 dark:bg-neutral-900/70 backdrop-blur-xl shadow-lg">
-          <div className="flex h-full flex-col p-3 sm:p-4">
+      {/* COMPOSER - AU DESSUS DE LA NAVBAR */}
+      <div className="px-4 pb-6 mb-20 flex-shrink-0 sticky bottom-[72px] z-20">
+        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-lg p-4">
+          <div className="flex items-end gap-2">
             <div className="flex-1">
+              <div className="flex items-center justify-between mb-1.5">
+                <label htmlFor="new-note" className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                  Écrire un mot doux
+                </label>
+                <span className="text-xs text-neutral-500 dark:text-neutral-400">
+                  {newNote.length} car.
+                </span>
+              </div>
               <textarea
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Écris un mot doux…"
-                className={`w-full h-full resize-none rounded-xl border border-black/10 dark:border-white/10 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-black/10 dark:focus:ring-white/10`}
+                id="new-note"
+                placeholder="Une pensée, un souvenir..."
+                className="w-full h-[70px] resize-none rounded-xl bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 px-3 py-2.5 text-sm text-neutral-900 dark:text-white placeholder:text-neutral-400 dark:placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-pink-500 dark:focus:ring-pink-600 focus:border-transparent transition-all"
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
               />
             </div>
-            <div className="mt-2 flex justify-end">
-              <button onClick={sendNote} disabled={!input.trim()} className={`inline-flex items-center gap-2 rounded-xl border border-black/10 dark:border-white/10 bg-black text-white dark:bg-white dark:text-black px-3 py-2 font-medium disabled:opacity-50 active:scale-95 transition`}>
-                <Send className="h-4 w-4" />
-                Envoyer
-              </button>
-            </div>
+            <button
+              type="button"
+              disabled={!newNote.trim() || !me || !coupleId || submitting}
+              onClick={async () => {
+                if (!newNote.trim() || !me || !coupleId) return;
+                setSubmitting(true);
+                try {
+                  const { error } = await supabase.from('love_notes').insert({
+                    couple_id: coupleId,
+                    author_id: me,
+                    content: newNote.trim(),
+                  });
+                  if (error) {
+                    console.error('[insert note] error:', error);
+                  } else {
+                    setNewNote('');
+                    setTab('sent');
+                  }
+                } finally {
+                  setSubmitting(false);
+                }
+              }}
+              className={`flex items-center justify-center w-12 h-12 rounded-xl transition-all ${
+                (!newNote.trim() || !me || !coupleId || submitting)
+                  ? 'bg-neutral-200 dark:bg-neutral-700 text-neutral-400 dark:text-neutral-500 cursor-not-allowed'
+                  : 'bg-gradient-to-br from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg shadow-pink-500/25 active:scale-95'
+              }`}
+            >
+              {submitting ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <Send className="w-5 h-5" />
+              )}
+            </button>
           </div>
         </div>
-      </section>
-
-      {/* util pour masquer la barre de scroll + affiner le padding du stack */}
-      <style jsx global>{`
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .scroll-stack-inner { padding-left: 1rem !important; padding-right: 1rem !important; padding-top: 12vh !important; padding-bottom: 28rem !important; }
-        @media (min-width: 640px) { .scroll-stack-inner { padding-left: 1.25rem !important; padding-right: 1.25rem !important; padding-top: 14vh !important; } }
-      `}</style>
+      </div>
     </main>
   );
 }

@@ -1,4 +1,5 @@
 // src/components/ui/Carousel.tsx
+'use client';
 import { useEffect, useState, useRef } from 'react';
 import { motion, PanInfo, useMotionValue, useTransform, type MotionValue } from 'motion/react';
 import React, { JSX } from 'react';

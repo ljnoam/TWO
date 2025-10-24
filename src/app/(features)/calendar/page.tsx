@@ -3,7 +3,16 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
-import { CalendarPlus, Trash2, Clock3, ChevronUp, ChevronDown } from "lucide-react";
+import {
+  CalendarPlus,
+  Trash2,
+  Clock3,
+  ChevronUp,
+  ChevronDown,
+  MoreVertical,
+  Pencil,
+  Apple,
+} from "lucide-react";
 import EventCard, { type CalendarEvent } from "@/components/calendar/EventCard";
 import EventForm from "@/components/calendar/EventForm";
 
@@ -28,6 +37,7 @@ export default function CalendarPage() {
   const [items, setItems] = useState<EventRow[]>([]);
   const [editing, setEditing] = useState<EventRow | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   // form state
   const [title, setTitle] = useState("");
@@ -209,24 +219,61 @@ export default function CalendarPage() {
     return out;
   }, [items]);
 
+  useEffect(() => {
+    if (!openMenuId) return;
+    function handleGlobalClick(event: MouseEvent) {
+      const target = event.target;
+      if (target instanceof HTMLElement && target.closest("[data-calendar-menu]")) return;
+      setOpenMenuId(null);
+    }
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpenMenuId(null);
+    }
+    document.addEventListener("click", handleGlobalClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("click", handleGlobalClick);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [openMenuId]);
+
+  function handleAddToAppleCalendar(ev: EventRow) {
+    if (typeof window === "undefined") return;
+    const payload = {
+      id: ev.id,
+      title: ev.title,
+      notes: ev.notes ?? "",
+      startsAt: ev.starts_at,
+      endsAt: ev.ends_at,
+      allDay: !!ev.all_day,
+    };
+    const webkitHandlers = (window as any)?.webkit?.messageHandlers;
+    const webkitTarget =
+      webkitHandlers?.addToCalendar ??
+      webkitHandlers?.calendar ??
+      webkitHandlers?.calendarEvent;
+
+    if (webkitTarget && typeof webkitTarget.postMessage === "function") {
+      try {
+        webkitTarget.postMessage(payload);
+        return;
+      } catch (error) {
+        console.warn("Failed to call webkit handler, falling back to ICS export", error);
+      }
+    }
+
+    const ics = buildIcsFromEvent(ev);
+    triggerIcsDownload(ics, buildIcsFilename(ev));
+  }
+
   const containerStyle: CSSProperties = {
-    "--gap": "16px",
-    minHeight: "calc(var(--viewport-height) - var(--nav-h))",
-  };
+    "--gap": "2px",
+  } as any;
 
   return (
     <main
       style={containerStyle}
-      className={`
-        w-full max-w-3xl mx-auto
-        min-h-screen
-        min-h-[calc(var(--viewport-height)-var(--nav-h))]
-        max-h-[calc(var(--viewport-height)-var(--nav-h))]
-        px-3 sm:px-4
-        pt-[calc(env(safe-area-inset-top)+var(--gap))]
-        pb-[calc(env(safe-area-inset-bottom)+var(--gap))]
-        flex flex-col overflow-y-auto no-scrollbar
-      `}
+      className="flex w-full flex-col min-h-[calc(var(--viewport-height)-var(--nav-h))] pb-[calc(env(safe-area-inset-bottom)+var(--gap))]"
     >
       {/* === FORMULAIRE STICKY TOP === */}
       <section
@@ -306,7 +353,8 @@ export default function CalendarPage() {
           {Array.from(grouped.entries()).map(([day, evs]) => (
             <div
               key={day}
-              className="rounded-2xl border border-black/10 dark:border-white/10 bg-white/80 dark:bg-neutral-900/70 backdrop-blur-md shadow p-4"
+              className="relative rounded-2xl border border-black/10 dark:border-white/10 bg-white/80 dark:bg-neutral-900/70 backdrop-blur-md shadow p-4 overflow-visible"
+              style={{ zIndex: evs.some(ev => openMenuId === ev.id) ? 50 : 'auto' }}
             >
               {/* Date section */}
               <h2 className="text-[11px] uppercase tracking-wide opacity-70 mb-3">
@@ -319,9 +367,13 @@ export default function CalendarPage() {
               </h2>
 
               {/* Events */}
-              <ul className="space-y-3">
+              <ul className="relative space-y-3">
                 {evs.map((ev) => (
-                  <li key={ev.id} className="flex items-start justify-between gap-3">
+                  <li
+                    key={ev.id}
+                    className="relative flex items-start justify-between gap-3"
+                    style={{ zIndex: openMenuId === ev.id ? 100 : 1 }}
+                  >
                     <div className="flex-1">
                       <p className="font-semibold text-lg">{ev.title}</p>
                       <p className="text-xs opacity-70 flex items-center gap-1 mt-0.5">
@@ -343,21 +395,76 @@ export default function CalendarPage() {
                         <p className="italic text-sm opacity-60 mt-1">{ev.notes}</p>
                       )}
                     </div>
-                    <div className="shrink-0 flex items-center gap-2">
+                    <div data-calendar-menu className="relative shrink-0">
                       <button
+                        data-menu-trigger={ev.id}
                         className="rounded-lg px-2 py-1 hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition"
-                        title="Éditer"
-                        onClick={() => setEditing(ev)}
+                        title="Actions événement"
+                        onClick={() => setOpenMenuId(prev => prev === ev.id ? null : ev.id)}
+                        aria-haspopup="menu"
+                        aria-expanded={openMenuId === ev.id}
                       >
-                        ✏️
+                        <MoreVertical className="h-4 w-4" />
                       </button>
-                      <button
-                        className="rounded-lg px-2 py-1 hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition"
-                        title="Supprimer"
-                        onClick={() => deleteEvent(ev.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {openMenuId === ev.id && (
+                        <div
+                          role="menu"
+                          className="fixed min-w-[180px] rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-neutral-900 shadow-lg py-1 translate-y-1"
+                          style={{ 
+                            zIndex: 9999,
+                            top: '0',
+                            left: '0',
+                            transform: 'translate(var(--menu-x), var(--menu-y))'
+                          }}
+                          ref={(el) => {
+                            if (el) {
+                              const btn = document.querySelector(`[data-menu-trigger="${ev.id}"]`);
+                              if (btn) {
+                                const rect = btn.getBoundingClientRect();
+                                el.style.setProperty('--menu-x', `${rect.right - 180}px`);
+                                el.style.setProperty('--menu-y', `${rect.bottom + 4}px`);
+                              }
+                            }
+                          }}
+                        >
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10"
+                            onClick={() => {
+                              setOpenMenuId(null);
+                              setEditing(ev);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                            Modifier
+                          </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10"
+                            onClick={() => {
+                              setOpenMenuId(null);
+                              handleAddToAppleCalendar(ev);
+                            }}
+                          >
+                            <Apple className="h-4 w-4" />
+                            Ajouter au calendrier Apple
+                          </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-black/5 dark:hover:bg-white/10 text-red-600 dark:text-red-400"
+                            onClick={() => {
+                              setOpenMenuId(null);
+                              deleteEvent(ev.id);
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Supprimer
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </li>
                 ))}
@@ -409,3 +516,90 @@ export default function CalendarPage() {
     </main>
   );
 }    
+
+function buildIcsFromEvent(event: EventRow): string {
+  const lines: string[] = [];
+  const allDay = !!event.all_day;
+  const now = new Date();
+  const startDate = new Date(event.starts_at);
+  lines.push("BEGIN:VCALENDAR");
+  lines.push("VERSION:2.0");
+  lines.push("PRODID:-//Nous//Calendar//FR");
+  lines.push("CALSCALE:GREGORIAN");
+  lines.push("BEGIN:VEVENT");
+  lines.push(`UID:${event.id}@nous2.app`);
+  lines.push(`DTSTAMP:${formatDateUtc(now)}`);
+  lines.push(
+    allDay
+      ? `DTSTART;VALUE=DATE:${formatDateValue(startDate)}`
+      : `DTSTART:${formatDateUtc(startDate)}`
+  );
+
+  if (event.ends_at) {
+    const endDate = new Date(event.ends_at);
+    lines.push(
+      allDay
+        ? `DTEND;VALUE=DATE:${formatDateValue(endDate)}`
+        : `DTEND:${formatDateUtc(endDate)}`
+    );
+  } else if (allDay) {
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 1);
+    lines.push(`DTEND;VALUE=DATE:${formatDateValue(endDate)}`);
+  }
+
+  lines.push(`SUMMARY:${escapeIcsText(event.title)}`);
+  if (event.notes) {
+    lines.push(`DESCRIPTION:${escapeIcsText(event.notes)}`);
+  }
+  lines.push("END:VEVENT");
+  lines.push("END:VCALENDAR");
+  return lines.join("\r\n") + "\r\n";
+}
+
+function triggerIcsDownload(ics: string, filename: string) {
+  const blob = new Blob([ics], { type: "text/calendar;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
+}
+
+function buildIcsFilename(event: EventRow): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const startsAt = new Date(event.starts_at);
+  const datePart = `${startsAt.getFullYear()}${pad(startsAt.getMonth() + 1)}${pad(startsAt.getDate())}`;
+  const slug = event.title
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const safeSlug = slug || "event";
+  return `${datePart}-${safeSlug}.ics`;
+}
+
+function formatDateUtc(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return (
+    `${date.getUTCFullYear()}${pad(date.getUTCMonth() + 1)}${pad(date.getUTCDate())}` +
+    `T${pad(date.getUTCHours())}${pad(date.getUTCMinutes())}${pad(date.getUTCSeconds())}Z`
+  );
+}
+
+function formatDateValue(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`;
+}
+
+function escapeIcsText(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/\r?\n/g, "\\n")
+    .replace(/,/g, "\\,")
+    .replace(/;/g, "\\;");
+}

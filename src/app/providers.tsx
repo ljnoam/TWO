@@ -5,6 +5,7 @@ import { useEffect } from 'react'
 import { flushOutbox } from '@/lib/outbox'
 import { supabase } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { enablePush } from '@/lib/push'
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -16,28 +17,42 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       }
     })
 
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker
-        .register('/sw.js')
-        .then(() => console.log('[SW] enregistré'))
-        .catch((err) => console.warn('[SW] erreur', err))
+    const ensurePushSubscription = async (force = false) => {
+      try {
+        if (typeof window === 'undefined') return
+        if (!('Notification' in window) || Notification.permission !== 'granted') return
+        if (!('serviceWorker' in navigator)) return
+        await enablePush({ forceResubscribe: force })
+      } catch (err) {
+        console.warn('[push] auto ensure failed', err)
+      }
     }
 
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.addEventListener('message', (ev) => {
-        if (ev.data === 'FLUSH_OUTBOX') {
-          flushOutbox()
+    const onSwMessage = (ev: MessageEvent<any>) => {
+      const payload = ev.data
+      if (payload === 'FLUSH_OUTBOX') {
+        flushOutbox()
+        return
+      }
+      if (payload === 'REFRESH_DONE') {
+        // Soft refresh server components; components can also listen to 'app:refresh'
+        try { router.refresh() } catch {}
+        try { document.dispatchEvent(new Event('app:refresh')) } catch {}
+        try { document.dispatchEvent(new Event('visibilitychange')) } catch {}
+        return
+      }
+      if (payload && typeof payload === 'object') {
+        const type = (payload as { type?: string }).type
+        if (type === 'PUSH_SUBSCRIPTION_CHANGED') {
+          ensurePushSubscription(true).catch(() => {})
         }
-        if (ev.data === 'REFRESH_DONE') {
-          // Soft refresh server components; components can also listen to 'app:refresh'
-          try { router.refresh() } catch {}
-          try { document.dispatchEvent(new Event('app:refresh')) } catch {}
-          try { document.dispatchEvent(new Event('visibilitychange')) } catch {}
+        if (type === 'PUSH_SUBSCRIPTION_RENEWED') {
+          ensurePushSubscription(false).catch(() => {})
         }
-      })
+      }
     }
 
-    window.addEventListener('online', async () => {
+    const onOnline = async () => {
       flushOutbox()
       try {
         if ('serviceWorker' in navigator) {
@@ -54,8 +69,30 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           }
         }
       } catch {}
-    })
-  }, [])
+    }
+
+    const swUrl = '/sw.js?v=20251023'
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker
+        .register(swUrl)
+        .then(() => {
+          console.log('[SW] enregistré')
+          ensurePushSubscription(false).catch(() => {})
+        })
+        .catch((err) => console.warn('[SW] erreur', err))
+
+      navigator.serviceWorker.addEventListener('message', onSwMessage)
+    }
+
+    window.addEventListener('online', onOnline)
+
+    return () => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', onSwMessage)
+      }
+      window.removeEventListener('online', onOnline)
+    }
+  }, [router])
 
   useEffect(() => {
     const updateViewportHeight = () => {

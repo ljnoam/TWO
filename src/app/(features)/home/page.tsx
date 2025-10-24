@@ -35,9 +35,7 @@ export default function HomePage() {
   }, [router]);
 
   return (
-    <main
-      className="w-full max-w-3xl mx-auto min-h-screen min-h-[calc(var(--viewport-height)-var(--nav-h))] max-h-[calc(var(--viewport-height)-var(--nav-h))] px-3 sm:px-4 pt-[calc(env(safe-area-inset-top)+var(--gap))] pb-[calc(env(safe-area-inset-bottom)+var(--gap))] flex flex-col overflow-y-auto no-scrollbar space-y-5 sm:space-y-6"
-    >
+    <main className="flex flex-col space-y-5 sm:space-y-6">
       {/* Hero section */}
       <section className="space-y-4">
         <DaysSinceCouple />

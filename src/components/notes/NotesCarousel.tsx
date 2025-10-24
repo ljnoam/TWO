@@ -19,7 +19,7 @@ function noteToItem(n: Note, idx: number): CarouselItem {
 export default function NotesCarousel({ notes }: { notes: Note[] }) {
   const items = notes.map(noteToItem);
   return (
-    <div style={{ height: 600, position: 'relative' }}>
+    <div className="relative w-full flex justify-center">
       <Carousel
         items={items}
         baseWidth={300}

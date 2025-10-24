@@ -7,16 +7,16 @@ import { createServerClient } from '@supabase/ssr'
 // Viewport: ensure PWA safe-area and system UI fit
 export const viewport = {
   viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' },
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+  ],
 }
 
 export const metadata = {
   title: 'Nous',
   description: 'App de couple ❤️',
-  manifest: '/manifest.json',
-  themeColor: [
-    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' },
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-  ],
+  manifest: '/manifest.json?v=20251023',
   icons: {
     icon: [
       { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },

@@ -3,7 +3,7 @@
 // - Uses Cache API strategies (network-first, cache-first, stale-while-revalidate)
 // - Prepares IndexedDB stores for offline data (notes, bucket items, events, prefs)
 
-const SW_VERSION = 'v2';
+const SW_VERSION = 'v3';
 const STATIC_CACHE = `nous2-static-${SW_VERSION}`;
 const PAGE_CACHE = `nous2-pages-${SW_VERSION}`;
 const RUNTIME_CACHE = `nous2-runtime-${SW_VERSION}`;
@@ -11,9 +11,7 @@ const RUNTIME_CACHE = `nous2-runtime-${SW_VERSION}`;
 const ROUTES_TO_PRECACHE = ['/', '/home', '/bucket', '/notes', '/login', '/calendar'];
 const STATIC_ASSETS = [
   '/manifest.json',
-  '/manifest.webmanifest',
   '/icon.png',
-  '/favicon-196.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/icons/apple-icon-180.png',
@@ -38,7 +36,7 @@ self.addEventListener('install', (event) => {
         );
 
         await initDataDB();
-      } catch (e) {
+      } catch {
         // Never block install on cache/db errors
       }
     })()
@@ -234,6 +232,149 @@ self.addEventListener('message', (event) => {
     );
   }
 });
+
+self.addEventListener('push', (event) => {
+  event.waitUntil(handlePushEvent(event));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification && event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil(focusOrOpenClient(targetUrl));
+});
+
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(handlePushSubscriptionChange(event));
+});
+
+const PUSH_FALLBACK_ICON = '/icons/icon-192.png';
+
+async function handlePushEvent(event) {
+  let payload = {};
+  if (event.data) {
+    try {
+      payload = event.data.json();
+    } catch {
+      let rawText = '';
+      try { rawText = await event.data.text(); } catch { rawText = ''; }
+      if (rawText) {
+        try { payload = JSON.parse(rawText); }
+        catch { payload = { body: rawText }; }
+      }
+    }
+  }
+
+  const title = typeof payload.title === 'string' && payload.title.trim() ? payload.title : 'Nous';
+  const body = typeof payload.body === 'string' ? payload.body : '';
+  const url = typeof payload.url === 'string' && payload.url ? payload.url : '/';
+
+  const baseData = typeof payload.data === 'object' && payload.data !== null ? payload.data : {};
+  const options = {
+    body,
+    data: { ...baseData, url },
+    icon: typeof payload.icon === 'string' ? payload.icon : PUSH_FALLBACK_ICON,
+    badge: typeof payload.badge === 'string' ? payload.badge : PUSH_FALLBACK_ICON,
+  };
+
+  if (typeof payload.tag === 'string') options.tag = payload.tag;
+  if (payload.renotify === true) options.renotify = true;
+  if (payload.silent === true) options.silent = true;
+  const timestamp = Number(payload.timestamp);
+  if (Number.isFinite(timestamp) && timestamp > 0) options.timestamp = timestamp;
+  if (Array.isArray(payload.actions)) {
+    options.actions = payload.actions;
+  }
+  if (payload.requireInteraction === true) options.requireInteraction = true;
+
+  return self.registration.showNotification(title, options);
+}
+
+async function focusOrOpenClient(url) {
+  const target = new URL(url, self.location.origin).href;
+  const windowClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+  for (const client of windowClients) {
+    try {
+      const clientUrl = client.url ? new URL(client.url, self.location.origin).href : '';
+      if (clientUrl === target || clientUrl.replace(/\/$/, '') === target.replace(/\/$/, '')) {
+        if ('focus' in client) {
+          await client.focus();
+        }
+        return;
+      }
+      if ('navigate' in client) {
+        await client.navigate(target);
+        await client.focus();
+        return;
+      }
+    } catch {
+      // ignore navigation errors
+    }
+  }
+  if (clients.openWindow) {
+    await clients.openWindow(target);
+  }
+}
+
+async function handlePushSubscriptionChange(event) {
+  let renewed = null;
+  try {
+    const options = event.oldSubscription && event.oldSubscription.options;
+    const appServerKey = options && options.applicationServerKey;
+    if (appServerKey) {
+      renewed = await self.registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: appServerKey,
+      });
+      await syncSubscriptionFromWorker(renewed);
+    }
+  } catch {
+    renewed = null;
+  }
+
+  const windowClients = await clients.matchAll({ includeUncontrolled: true, type: 'window' });
+  const message = renewed
+    ? { type: 'PUSH_SUBSCRIPTION_RENEWED' }
+    : { type: 'PUSH_SUBSCRIPTION_CHANGED' };
+  windowClients.forEach((client) => client.postMessage(message));
+}
+
+async function syncSubscriptionFromWorker(subscription) {
+  if (!subscription) return false;
+  const payload = subscriptionToPayload(subscription);
+  if (!payload) return false;
+  try {
+    const res = await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+function subscriptionToPayload(subscription) {
+  const keyP256 = subscription.getKey('p256dh');
+  const keyAuth = subscription.getKey('auth');
+  if (!keyP256 || !keyAuth) return null;
+  return {
+    endpoint: subscription.endpoint,
+    p256dh: arrayBufferToBase64(keyP256),
+    auth: arrayBufferToBase64(keyAuth),
+    ua: 'service-worker',
+  };
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i += 1) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
 
 // IndexedDB bootstrap for offline data
 const DATA_DB = 'nous2';

@@ -251,14 +251,10 @@ export default function BucketPage() {
 
   const containerStyle: CSSProperties = {
     '--gap': '16px',
-    minHeight: 'calc(var(--viewport-height) - var(--nav-h))',
   };
 
   return (
-    <main
-      style={containerStyle}
-      className="w-full max-w-3xl mx-auto min-h-screen min-h-[calc(var(--viewport-height)-var(--nav-h))] max-h-[calc(var(--viewport-height)-var(--nav-h))] px-3 sm:px-4 pt-[calc(env(safe-area-inset-top)+var(--gap))] pb-[calc(env(safe-area-inset-bottom)+var(--gap))] flex flex-col overflow-y-auto no-scrollbar"
-    >
+    <main style={containerStyle} className="flex flex-col">
       <section className="fixed top-[calc(env(safe-area-inset-top)+var(--gap))] left-0 right-0 px-3 sm:px-4 z-10">
         <div className="max-w-3xl mx-auto rounded-2xl border border-black/10 dark:border-white/10 bg-white/80 dark:bg-neutral-900/70 backdrop-blur-md shadow-lg p-4 sm:p-5">
           <div className="flex items-center justify-between">

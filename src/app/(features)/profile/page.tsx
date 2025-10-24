@@ -194,7 +194,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <main className="max-w-3xl mx-auto px-4 pt-8 pb-[calc(var(--nav-h)+24px)] space-y-6 min-h-screen min-h-[var(--viewport-height)] max-h-[var(--viewport-height)] overflow-y-auto no-scrollbar">
+    <main className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Salut {profile?.first_name || 'toi'} 👋</h1>

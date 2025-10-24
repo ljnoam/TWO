@@ -1,7 +1,6 @@
 ﻿'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import type { CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import { setAppBadge } from '@/lib/badging';
@@ -172,17 +171,20 @@ export default function NotesPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-neutral-950">
+      <main className="flex items-center justify-center bg-neutral-50 dark:bg-neutral-950">
         <div className="w-8 h-8 border-2 border-neutral-300 dark:border-neutral-700 border-t-neutral-900 dark:border-t-neutral-100 rounded-full animate-spin" />
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-neutral-50 dark:bg-neutral-950 flex flex-col pb-[72px]">
-      {/* HEADER FLOATING */}
-      <div className="px-4 pt-4 pb-4">
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-lg p-5">
+    <main
+      style={{ "--gap": "16px" }}
+      className="flex flex-col h-full bg-neutral-50 dark:bg-neutral-950"
+    >
+      {/* HEADER FIXE */}
+      <section className="pt-[calc(env(safe-area-inset-top)+var(--gap))] px-2">
+        <div className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-sm pt-4 px-4 pb-4">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-pink-500 to-rose-500 flex items-center justify-center shadow-lg">
               <Heart className="w-5 h-5 text-white" fill="white" />
@@ -196,11 +198,11 @@ export default function NotesPage() {
           {/* TABS */}
           <div className="flex gap-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl p-1">
             <button
-              onClick={() => setTab('received')}
+              onClick={() => setTab("received")}
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                tab === 'received'
-                  ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-sm'
-                  : 'text-neutral-600 dark:text-neutral-400'
+                tab === "received"
+                  ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-sm"
+                  : "text-neutral-600 dark:text-neutral-400"
               }`}
             >
               <Inbox className="w-4 h-4" />
@@ -212,11 +214,11 @@ export default function NotesPage() {
               )}
             </button>
             <button
-              onClick={() => setTab('sent')}
+              onClick={() => setTab("sent")}
               className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                tab === 'sent'
-                  ? 'bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-sm'
-                  : 'text-neutral-600 dark:text-neutral-400'
+                tab === "sent"
+                  ? "bg-white dark:bg-neutral-900 text-neutral-900 dark:text-white shadow-sm"
+                  : "text-neutral-600 dark:text-neutral-400"
               }`}
             >
               <Mail className="w-4 h-4" />
@@ -229,24 +231,23 @@ export default function NotesPage() {
             </button>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* CAROUSEL */}
-      <div className="flex items-center justify-center px-4 py-2 min-h-0">
+      {/* CAROUSEL (fixe au centre) */}
+      <div className="flex-1 flex items-center justify-center px-3 mt-1 mb-2">
         {activeList.length === 0 ? (
           <div className="text-center">
             <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center">
-              {tab === 'received' ? (
+              {tab === "received" ? (
                 <Inbox className="w-8 h-8 text-neutral-400 dark:text-neutral-600" />
               ) : (
                 <Mail className="w-8 h-8 text-neutral-400 dark:text-neutral-600" />
               )}
             </div>
             <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              {tab === 'received' 
-                ? 'Aucun mot doux reçu pour l\'instant.' 
-                : 'Vous n\'avez pas encore envoyé de mot doux.'
-              }
+              {tab === "received"
+                ? "Aucun mot doux reçu pour l'instant."
+                : "Vous n'avez pas encore envoyé de mot doux."}
             </p>
           </div>
         ) : (
@@ -254,13 +255,19 @@ export default function NotesPage() {
         )}
       </div>
 
-      {/* COMPOSER - AU DESSUS DE LA NAVBAR */}
-      <div className="px-4 pb-6 mb-20 flex-shrink-0 sticky bottom-[72px] z-20">
-        <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-lg p-4">
+      {/* ESPACE ENTRE CAROUSEL ET COMPOSER */}
+      <div className="h-4" />
+
+      {/* COMPOSER COLLÉ EN BAS */}
+      <div className="sticky bottom-[calc(env(safe-area-inset-bottom)+var(--nav-h))] z-20 px-3">
+        <div className="bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-sm p-3">
           <div className="flex items-end gap-2">
             <div className="flex-1">
               <div className="flex items-center justify-between mb-1.5">
-                <label htmlFor="new-note" className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                <label
+                  htmlFor="new-note"
+                  className="text-xs font-medium text-neutral-700 dark:text-neutral-300"
+                >
                   Écrire un mot doux
                 </label>
                 <span className="text-xs text-neutral-500 dark:text-neutral-400">
@@ -282,25 +289,25 @@ export default function NotesPage() {
                 if (!newNote.trim() || !me || !coupleId) return;
                 setSubmitting(true);
                 try {
-                  const { error } = await supabase.from('love_notes').insert({
+                  const { error } = await supabase.from("love_notes").insert({
                     couple_id: coupleId,
                     author_id: me,
                     content: newNote.trim(),
                   });
                   if (error) {
-                    console.error('[insert note] error:', error);
+                    console.error("[insert note] error:", error);
                   } else {
-                    setNewNote('');
-                    setTab('sent');
+                    setNewNote("");
+                    setTab("sent");
                   }
                 } finally {
                   setSubmitting(false);
                 }
               }}
               className={`flex items-center justify-center w-12 h-12 rounded-xl transition-all ${
-                (!newNote.trim() || !me || !coupleId || submitting)
-                  ? 'bg-neutral-200 dark:bg-neutral-700 text-neutral-400 dark:text-neutral-500 cursor-not-allowed'
-                  : 'bg-gradient-to-br from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg shadow-pink-500/25 active:scale-95'
+                !newNote.trim() || !me || !coupleId || submitting
+                  ? "bg-neutral-200 dark:bg-neutral-700 text-neutral-400 dark:text-neutral-500 cursor-not-allowed"
+                  : "bg-gradient-to-br from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white shadow-lg shadow-pink-500/25 active:scale-95"
               }`}
             >
               {submitting ? (
@@ -311,7 +318,22 @@ export default function NotesPage() {
             </button>
           </div>
         </div>
+
+        {!newNote && (
+          <div className="mt-2 flex gap-2 flex-wrap justify-center">
+            {["Je pense à toi ❤️", "Tu me manques 🥹", "Merci d'être toi 💕"].map((msg) => (
+              <button
+                key={msg}
+                onClick={() => setNewNote(msg)}
+                className="px-3 py-1.5 text-sm rounded-full bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 hover:bg-pink-200/60 dark:hover:bg-pink-800/50 transition active:scale-95"
+              >
+                {msg}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </main>
   );
+
 }

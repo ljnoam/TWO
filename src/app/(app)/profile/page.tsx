@@ -4,11 +4,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase/client'
 import DarkModeToggle from '@/components/ui/DarkModeToggle'
-import AvatarUploader from '@/components/profile/AvatarUploader'
+import AvatarUploader from '@/features/profile/components/AvatarUploader'
 import { Bell, BellOff, LogOut, Heart } from 'lucide-react'
-import { enablePush, disablePush } from '@/lib/push'
-import Preferences from '@/components/profile/Preferences'
-import Security from '@/components/profile/Security'
+import { enablePush, disablePush } from '@/lib/pwa/push'
+import Preferences from '@/features/profile/components/Preferences'
+import Security from '@/features/profile/components/Security'
 
 type CoupleStatus = {
   couple_id: string

@@ -196,7 +196,7 @@ export default function BucketPage() {
     const maxPos = Math.max(-1, ...items.filter((item) => !item.is_done).map((item) => item.position ?? -1)) + 1;
 
     if (!navigator.onLine) {
-      const { enqueueOutbox } = await import('@/lib/outbox');
+      const { enqueueOutbox } = await import('@/lib/pwa/outbox');
       await enqueueOutbox('bucket_item', { title, couple_id: coupleId, author_id: me, position: maxPos });
       console.log('[offline] bucket item queued');
       return;

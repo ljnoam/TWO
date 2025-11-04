@@ -13,8 +13,8 @@ import {
   Pencil,
   Apple,
 } from "lucide-react";
-import EventCard, { type CalendarEvent } from "@/components/calendar/EventCard";
-import EventForm from "@/components/calendar/EventForm";
+import EventCard, { type CalendarEvent } from "@/features/calendar/components/EventCard";
+import EventForm from "@/features/calendar/components/EventForm";
 
 export const dynamic = "force-dynamic";
 
@@ -146,7 +146,7 @@ export default function CalendarPage() {
       ends_at = null;
     }
     if (!navigator.onLine) {
-      const { enqueueOutbox } = await import('@/lib/outbox');
+      const { enqueueOutbox } = await import('@/lib/pwa/outbox');
       await enqueueOutbox('event', {
         title: t,
         starts_at,

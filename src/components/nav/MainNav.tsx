@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   Home, NotebookPen, ListChecks, Calendar as CalendarIcon
 } from 'lucide-react';
-import UserAvatar from './UserAvatar';
+import UserAvatar from '../layout/UserAvatar';
 
 type Item = {
   href: string;

@@ -2,10 +2,10 @@
 
 import { ThemeProvider } from 'next-themes'
 import { useEffect } from 'react'
-import { flushOutbox } from '@/lib/outbox'
+import { flushOutbox } from '@/lib/pwa/outbox'
 import { supabase } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { enablePush } from '@/lib/push'
+import { enablePush } from '@/lib/pwa/push'
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   const router = useRouter()

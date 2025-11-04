@@ -1,41 +1,39 @@
-import '../styles/globals.css'
-import Providers from './providers'
-import InstallBanner from '@/components/pwa/InstallBanner'
-import { cookies, headers } from 'next/headers'
-import { createServerClient } from '@supabase/ssr'
+import "../styles/globals.css"
+import Providers from "./providers"
+import { cookies, headers } from "next/headers"
+import { createServerClient } from "@supabase/ssr"
 
-// Viewport: ensure PWA safe-area and system UI fit
 export const viewport = {
-  viewportFit: 'cover',
+  viewportFit: "cover",
   themeColor: [
-    { media: '(prefers-color-scheme: dark)', color: '#0a0a0a' },
-    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
   ],
 }
 
 export const metadata = {
-  title: 'Nous',
-  description: 'App de couple ❤️',
-  manifest: '/manifest.json?v=20251023',
+  title: "TWO",
+  description: "App de couple",
+  manifest: "/manifest.json?v=20251023",
   icons: {
     icon: [
-      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' }
+      { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
     ],
-    apple: [
-      { url: '/icons/apple-icon-180.png', sizes: '180x180', type: 'image/png' }
-    ],
+    apple: [{ url: "/icons/apple-icon-180.png", sizes: "180x180", type: "image/png" }],
   },
   appleWebApp: {
     capable: true,
-    title: 'Nous',
-    statusBarStyle: 'black-translucent',
+    title: "Nous",
+    statusBarStyle: "black-translucent",
   },
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // 🔐 Auth côté serveur (Supabase)
   const cookieStore = await cookies()
   const hdrs = await headers()
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -58,14 +56,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="fr" suppressHydrationWarning>
       <body
         className={`
-          min-h-screen min-h-[var(--viewport-height)]
+          min-h-screen
           bg-white text-neutral-900
           dark:bg-neutral-950 dark:text-neutral-50
-          font-sans antialiased flex flex-col overflow-hidden
+          font-sans antialiased
         `}
-        data-has-session={hasSession ? '1' : '0'}
+        data-has-session={hasSession ? "1" : "0"}
       >
-        <InstallBanner />
         <Providers>{children}</Providers>
       </body>
     </html>

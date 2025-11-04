@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
-import { setAppBadge } from '@/lib/badging';
+import { setAppBadge } from '@/lib/pwa/badging';
 import { relativeTimeFromNow } from '@/lib/utils';
-import NotesCarousel from '@/components/notes/NotesCarousel';
+import NotesCarousel from '@/features/notes/components/NotesCarousel';
 import { Send, Heart, Inbox, Mail } from 'lucide-react';
 
 // type Note local

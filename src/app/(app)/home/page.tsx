@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase/client';
 import DaysSinceCouple from '@/components/counter/DaysSinceCouple';
-import ActivityWidget from '@/components/home/ActivityWidget';
+import ActivityWidget from '@/features/home/components/ActivityWidget';
 import { Send, ListChecks, CalendarPlus, Heart } from 'lucide-react';
 
 export default function HomePage() {

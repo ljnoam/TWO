@@ -1,9 +1,27 @@
-"use client"
+import type { ReactNode } from 'react'
 
-import { AppShell } from "@/components/layout/AppShell"
-import InstallBanner from "@/components/layout/InstallBanner"
+import { redirect } from 'next/navigation'
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+import InstallBanner from '@/components/layout/InstallBanner'
+import { AppShell } from '@/components/layout/AppShell'
+import { createServerSupabaseClient } from '@/lib/supabase/server'
+
+export default async function AppLayout({ children }: { children: ReactNode }) {
+  const supabase = createServerSupabaseClient()
+  const {
+    data: { session },
+    error,
+  } = await supabase.auth.getSession()
+
+  if (error) {
+    console.error('[supabase] session error', error)
+    throw error
+  }
+
+  if (!session) {
+    redirect('/login')
+  }
+
   return (
     <>
       <InstallBanner />
